@@ -130,3 +130,15 @@ CREATE TABLE IF NOT EXISTS households (
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS household_id UUID REFERENCES households(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id    UUID REFERENCES users(id) ON DELETE SET NULL,
+  user_email TEXT,
+  user_name  TEXT,
+  type       TEXT NOT NULL DEFAULT 'general',
+  rating     INTEGER,
+  message    TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'open',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

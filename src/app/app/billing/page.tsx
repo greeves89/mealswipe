@@ -1,7 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { PLANS, PlanKey } from "@/lib/stripe";
 import { motion } from "framer-motion";
 import { Check, Loader2, Crown, Zap, Users, Star } from "lucide-react";
@@ -32,28 +31,23 @@ function BillingContent() {
   const [userEmail, setUserEmail] = useState("");
   const searchParams = useSearchParams();
   const success = searchParams.get("success") === "true";
-  const supabase = createClient();
 
   useEffect(() => {
     async function fetchProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserEmail(user.email ?? "");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("plan")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.plan) {
-        setCurrentPlan(profile.plan as PlanKey);
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) return;
+        const user = await res.json();
+        setUserEmail(user.email ?? "");
+        if (user.plan) {
+          setCurrentPlan(user.plan as PlanKey);
+        }
+      } catch {
+        // Gracefully handle error — stay with default free plan
       }
     }
     fetchProfile();
-  }, [supabase]);
+  }, []);
 
   const handleUpgrade = async (plan: PlanKey) => {
     if (plan === "free") return;

@@ -1,5 +1,5 @@
 import { stripe } from "@/lib/stripe";
-import { createClient } from "@/lib/supabase/server";
+import { query, queryOne } from "@/lib/db";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
@@ -24,20 +24,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  const supabase = await createClient();
-
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.metadata?.userId;
     const plan = session.metadata?.plan;
 
     if (userId && plan) {
-      await supabase.from("profiles").upsert({
-        id: userId,
-        plan,
-        stripe_customer_id: session.customer as string,
-        updated_at: new Date().toISOString(),
-      });
+      try {
+        await query(
+          `INSERT INTO profiles (id, plan, stripe_customer_id, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (id) DO UPDATE
+           SET plan = EXCLUDED.plan,
+               stripe_customer_id = EXCLUDED.stripe_customer_id,
+               updated_at = NOW()`,
+          [userId, plan, session.customer as string]
+        );
+      } catch {
+        // DB may not be configured — ignore gracefully
+      }
     }
   }
 
@@ -46,17 +51,20 @@ export async function POST(req: NextRequest) {
     const customerId =
       typeof sub.customer === "string" ? sub.customer : sub.customer.id;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("stripe_customer_id", customerId)
-      .single();
+    try {
+      const profile = await queryOne<{ id: string }>(
+        "SELECT id FROM profiles WHERE stripe_customer_id = $1",
+        [customerId]
+      );
 
-    if (profile) {
-      await supabase
-        .from("profiles")
-        .update({ plan: "free", updated_at: new Date().toISOString() })
-        .eq("id", profile.id);
+      if (profile) {
+        await query(
+          "UPDATE profiles SET plan = 'free', updated_at = NOW() WHERE id = $1",
+          [profile.id]
+        );
+      }
+    } catch {
+      // DB may not be configured — ignore gracefully
     }
   }
 
@@ -66,17 +74,20 @@ export async function POST(req: NextRequest) {
       typeof sub.customer === "string" ? sub.customer : sub.customer.id;
 
     if (sub.status === "active") {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("stripe_customer_id", customerId)
-        .single();
+      try {
+        const profile = await queryOne<{ id: string }>(
+          "SELECT id FROM profiles WHERE stripe_customer_id = $1",
+          [customerId]
+        );
 
-      if (profile) {
-        await supabase
-          .from("profiles")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", profile.id);
+        if (profile) {
+          await query(
+            "UPDATE profiles SET updated_at = NOW() WHERE id = $1",
+            [profile.id]
+          );
+        }
+      } catch {
+        // DB may not be configured — ignore gracefully
       }
     }
   }

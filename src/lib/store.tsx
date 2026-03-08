@@ -1,7 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { Recipe, RECIPES } from "./recipes";
-import { createClient } from "./supabase/client";
 
 export interface MealPlan {
   [dayKey: string]: Recipe;
@@ -94,81 +93,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Get Supabase user and sync data
+  // Get current user via API
   useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) {
-        setUserId(data.user.id);
-        // Sync meal plans from Supabase
-        syncFromSupabase(supabase, data.user.id);
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const user = await res.json();
+          if (user?.id) {
+            setUserId(user.id);
+          }
+        }
+      } catch {
+        // Not authenticated or network error — stay with localStorage data
       }
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
-      if (session?.user) {
-        setUserId(session.user.id);
-        syncFromSupabase(supabase, session.user.id);
-      } else {
-        setUserId(null);
-      }
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  async function syncFromSupabase(supabase: ReturnType<typeof createClient>, uid: string) {
-    try {
-      // Sync meal plans
-      const weekStart = getWeekDaysLocal()[0];
-      const { data: plans } = await supabase
-        .from("meal_plans")
-        .select("*")
-        .eq("user_id", uid)
-        .gte("day", weekStart);
-
-      if (plans?.length) {
-        const plan: MealPlan = {};
-        plans.forEach((p: { day: string; recipe_data: Recipe }) => {
-          if (p.recipe_data) plan[p.day] = p.recipe_data;
-        });
-        setWeeklyPlan(plan);
-      }
-
-      // Sync profile/household
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("household_name, household_people, household_diets")
-        .eq("id", uid)
-        .single();
-
-      if (profile) {
-        setHouseholdState({
-          name: profile.household_name ?? "Mein Haushalt",
-          people: profile.household_people ?? 2,
-          diets: profile.household_diets ?? [],
-        });
-      }
-
-      // Sync liked recipe reactions
-      const { data: reactions } = await supabase
-        .from("recipe_reactions")
-        .select("recipe_id, reaction")
-        .eq("user_id", uid);
-
-      if (reactions) {
-        const liked = reactions.filter((r: { reaction: string }) => r.reaction === "like")
-          .map((r: { recipe_id: string }) => RECIPES.find((rec) => rec.id === r.recipe_id))
-          .filter(Boolean) as Recipe[];
-        const disliked = reactions
-          .filter((r: { reaction: string }) => r.reaction === "dislike")
-          .map((r: { recipe_id: string }) => r.recipe_id);
-        if (liked.length) setLikedRecipes(liked);
-        if (disliked.length) setDislikedIds(disliked);
-      }
-    } catch {
-      // Supabase not configured — stay with localStorage data
     }
-  }
+    fetchUser();
+  }, []);
 
   // Persist to localStorage whenever state changes
   useEffect(() => {
@@ -179,13 +120,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHouseholdState(h);
     if (userId) {
       try {
-        const supabase = createClient();
-        await supabase.from("profiles").update({
-          household_name: h.name,
-          household_people: h.people,
-          household_diets: h.diets,
-        }).eq("id", userId);
-      } catch {}
+        await fetch("/api/meal-plans/household", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            household_name: h.name,
+            household_people: h.people,
+            household_diets: h.diets,
+          }),
+        });
+      } catch {
+        // Gracefully fail — localStorage is primary storage
+      }
     }
   }, [userId]);
 
@@ -193,16 +139,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWeeklyPlan((prev) => ({ ...prev, [day]: recipe }));
     if (userId) {
       try {
-        const supabase = createClient();
-        await supabase.from("meal_plans").upsert({
-          user_id: userId,
-          day,
-          recipe_id: recipe.id,
-          recipe_name: recipe.name,
-          recipe_image: recipe.image,
-          recipe_data: recipe,
-        }, { onConflict: "user_id,day,meal_type" });
-      } catch {}
+        await fetch("/api/meal-plans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            day,
+            recipe_id: recipe.id,
+            recipe_name: recipe.name,
+            recipe_image: recipe.image,
+            recipe_data: recipe,
+          }),
+        });
+      } catch {
+        // Gracefully fail — localStorage is primary storage
+      }
     }
   }, [userId]);
 
@@ -210,9 +160,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWeeklyPlan((prev) => { const n = { ...prev }; delete n[day]; return n; });
     if (userId) {
       try {
-        const supabase = createClient();
-        await supabase.from("meal_plans").delete().eq("user_id", userId).eq("day", day);
-      } catch {}
+        await fetch(`/api/meal-plans?day=${encodeURIComponent(day)}`, {
+          method: "DELETE",
+        });
+      } catch {
+        // Gracefully fail — localStorage is primary storage
+      }
     }
   }, [userId]);
 
@@ -226,12 +179,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     if (userId) {
       try {
-        const supabase = createClient();
-        await supabase.from("recipe_reactions").upsert(
-          { user_id: userId, recipe_id: recipe.id, reaction: "like" },
-          { onConflict: "user_id,recipe_id" }
-        );
-      } catch {}
+        await fetch("/api/meal-plans/reactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipe_id: recipe.id, reaction: "like" }),
+        });
+      } catch {
+        // Gracefully fail — localStorage is primary storage
+      }
     }
   }, [userId, weeklyPlan, addToWeeklyPlan]);
 
@@ -239,12 +194,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDislikedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     if (userId) {
       try {
-        const supabase = createClient();
-        await supabase.from("recipe_reactions").upsert(
-          { user_id: userId, recipe_id: id, reaction: "dislike" },
-          { onConflict: "user_id,recipe_id" }
-        );
-      } catch {}
+        await fetch("/api/meal-plans/reactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipe_id: id, reaction: "dislike" }),
+        });
+      } catch {
+        // Gracefully fail — localStorage is primary storage
+      }
     }
   }, [userId]);
 

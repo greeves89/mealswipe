@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Home, Flame, Calendar, ShoppingCart, User, Camera } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/app", icon: Home, label: "Home" },
@@ -53,33 +52,29 @@ function BottomNav() {
 function TopBar() {
   const [avatarLetter, setAvatarLetter] = useState("M");
   const [planBadge, setPlanBadge] = useState<string | null>(null);
-  const supabase = createClient();
 
   useEffect(() => {
     async function fetchUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) return;
 
-      const letter =
-        user.user_metadata?.display_name?.charAt(0).toUpperCase() ||
-        user.email?.charAt(0).toUpperCase() ||
-        "M";
-      setAvatarLetter(letter);
+        const user = await res.json();
+        const letter =
+          user.name?.charAt(0).toUpperCase() ||
+          user.email?.charAt(0).toUpperCase() ||
+          "M";
+        setAvatarLetter(letter);
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("plan")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.plan && profile.plan !== "free") {
-        setPlanBadge(profile.plan);
+        if (user.plan && user.plan !== "free") {
+          setPlanBadge(user.plan);
+        }
+      } catch {
+        // Gracefully handle error — keep default avatar
       }
     }
     fetchUser();
-  }, [supabase]);
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/5 px-4 py-3">

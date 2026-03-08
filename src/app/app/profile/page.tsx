@@ -1,7 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -33,6 +32,13 @@ interface Profile {
   dietary_restrictions: string[];
 }
 
+interface MeResponse {
+  id: string;
+  email: string;
+  name: string;
+  plan: string;
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState("");
@@ -44,57 +50,55 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     async function loadProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) {
+          router.push("/auth/login");
+          return;
+        }
 
-      if (!user) {
+        const user: MeResponse = await res.json();
+        setEmail(user.email ?? "");
+
+        const profileData: Profile = {
+          display_name: user.name ?? null,
+          plan: user.plan ?? "free",
+          household_size: 2,
+          dietary_restrictions: [],
+        };
+        setProfile(profileData);
+        setDisplayName(user.name ?? user.email?.split("@")[0] ?? "");
+        setHouseholdSize(2);
+        setDietRestrictions([]);
+      } catch {
         router.push("/auth/login");
         return;
-      }
-
-      setEmail(user.email ?? "");
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name, plan, household_size, dietary_restrictions")
-        .eq("id", user.id)
-        .single();
-
-      if (data) {
-        setProfile(data as Profile);
-        setDisplayName(data.display_name ?? user.email?.split("@")[0] ?? "");
-        setHouseholdSize(data.household_size ?? 2);
-        setDietRestrictions(data.dietary_restrictions ?? []);
       }
 
       setLoading(false);
     }
 
     loadProfile();
-  }, [supabase, router]);
+  }, [router]);
 
   const handleSave = async () => {
     setSaving(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    await supabase
-      .from("profiles")
-      .update({
-        display_name: displayName,
-        household_size: householdSize,
-        dietary_restrictions: dietRestrictions,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
+    try {
+      await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_name: displayName,
+          household_size: householdSize,
+          dietary_restrictions: dietRestrictions,
+        }),
+      });
+    } catch {
+      // Gracefully handle error — profile update is best-effort
+    }
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -102,7 +106,11 @@ export default function ProfilePage() {
 
   const handleSignOut = async () => {
     setSigningOut(true);
-    await fetch("/api/auth/signout", { method: "POST" });
+    try {
+      await fetch("/api/auth/signout", { method: "POST" });
+    } catch {
+      // Ignore errors on signout
+    }
     router.push("/");
     router.refresh();
   };

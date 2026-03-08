@@ -1,12 +1,9 @@
 import { stripe, PLANS, PlanKey } from "@/lib/stripe";
-import { createClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSession();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

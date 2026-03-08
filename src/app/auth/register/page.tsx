@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -34,7 +33,6 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,30 +51,28 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
 
-    const { data, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { display_name: name },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
-      },
-    });
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
 
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-      return;
-    }
+      const data = await res.json();
 
-    // If session is immediately available, email confirm is disabled — go to onboarding
-    if (data.session) {
+      if (!res.ok) {
+        setError(data.error ?? "Registrierung fehlgeschlagen");
+        setLoading(false);
+        return;
+      }
+
+      // Registration successful — redirect to onboarding
       router.push("/onboarding");
       router.refresh();
-    } else {
-      // Email confirmation required
-      setSuccess(true);
+    } catch {
+      setError("Netzwerkfehler. Bitte versuche es erneut.");
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (success) {

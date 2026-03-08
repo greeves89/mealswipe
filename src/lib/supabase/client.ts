@@ -1,8 +1,3 @@
-import { createBrowserClient } from "@supabase/ssr";
-
-export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+// Supabase client removed — use custom API routes and fetch() instead.
+// This file is kept as a placeholder to avoid broken imports during migration.
+export {};

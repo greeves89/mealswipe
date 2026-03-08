@@ -404,7 +404,7 @@ export default function RecipesPage() {
   const fetchRecipes = useCallback(async (q: string, c: string) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ number: "50" });
+      const params = new URLSearchParams({ number: "400" });
       if (q) params.set("query", q);
       if (c && c !== "Alle") params.set("cuisine", c);
       const res = await fetch(`/api/recipes?${params}`);

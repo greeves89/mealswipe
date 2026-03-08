@@ -193,10 +193,10 @@ function BillingContent() {
                   <p className="text-center text-[#475569] text-xs">
                     Kontakt:{" "}
                     <a
-                      href={`mailto:support@mealswipe.app?subject=Subscription&body=Konto: ${userEmail}`}
+                      href={`mailto:support@forkly.site?subject=Subscription&body=Konto: ${userEmail}`}
                       className="text-teal-400 hover:underline"
                     >
-                      support@mealswipe.app
+                      support@forkly.site
                     </a>
                   </p>
                 )}

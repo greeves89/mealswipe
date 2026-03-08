@@ -179,7 +179,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     if (userId) {
       try {
-        await fetch("/api/meal-plans/reactions", {
+        await fetch("/api/reactions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ recipe_id: recipe.id, reaction: "like" }),
@@ -194,7 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDislikedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     if (userId) {
       try {
-        await fetch("/api/meal-plans/reactions", {
+        await fetch("/api/reactions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ recipe_id: id, reaction: "dislike" }),

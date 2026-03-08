@@ -33,8 +33,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/app");
-      router.refresh();
+      window.location.replace("/app");
     } catch {
       setError("Netzwerkfehler. Bitte versuche es erneut.");
       setLoading(false);

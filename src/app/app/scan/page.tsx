@@ -97,14 +97,24 @@ export default function ScanPage() {
     }
   };
 
-  const handleAddRecipe = () => {
-    setAdded(true);
-    // In a real app, this would add to the user's recipe collection
-    setTimeout(() => {
-      setResult(null);
-      setPreview(null);
-      setAdded(false);
-    }, 2000);
+  const handleAddRecipe = async () => {
+    if (!result || added) return;
+    try {
+      const res = await fetch("/api/scan", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(result),
+      });
+      if (!res.ok) throw new Error("Speichern fehlgeschlagen");
+      setAdded(true);
+      setTimeout(() => {
+        setResult(null);
+        setPreview(null);
+        setAdded(false);
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rezept konnte nicht gespeichert werden");
+    }
   };
 
   const handleTabChange = (tab: Tab) => {

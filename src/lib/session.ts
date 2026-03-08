@@ -53,7 +53,7 @@ export function getSessionFromRequest(req: Request): Promise<SessionUser | null>
 export const COOKIE_OPTIONS = {
   name: COOKIE_NAME,
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: process.env.COOKIE_SECURE === "true",
   sameSite: "lax" as const,
   maxAge: EXPIRES_IN,
   path: "/",

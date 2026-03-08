@@ -14,7 +14,9 @@ import {
   Loader2,
   Check,
   Utensils,
+  MessageSquare,
 } from "lucide-react";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 const DIET_OPTIONS = [
   "Vegetarisch",
@@ -49,30 +51,45 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     async function loadProfile() {
       try {
-        const res = await fetch("/api/auth/me");
-        if (!res.ok) {
+        const [meRes, profileRes] = await Promise.all([
+          fetch("/api/auth/me"),
+          fetch("/api/profile"),
+        ]);
+
+        if (!meRes.ok) {
           router.push("/auth/login");
           return;
         }
 
-        const user: MeResponse = await res.json();
+        const user: MeResponse = await meRes.json();
         setEmail(user.email ?? "");
+        setDisplayName(user.name ?? user.email?.split("@")[0] ?? "");
 
-        const profileData: Profile = {
+        let household_size = 2;
+        let dietary_restrictions: string[] = [];
+
+        if (profileRes.ok) {
+          const { profile } = await profileRes.json();
+          if (profile) {
+            household_size = profile.household_people ?? 2;
+            dietary_restrictions = profile.household_diets ?? [];
+          }
+        }
+
+        setProfile({
           display_name: user.name ?? null,
           plan: user.plan ?? "free",
-          household_size: 2,
-          dietary_restrictions: [],
-        };
-        setProfile(profileData);
-        setDisplayName(user.name ?? user.email?.split("@")[0] ?? "");
-        setHouseholdSize(2);
-        setDietRestrictions([]);
+          household_size,
+          dietary_restrictions,
+        });
+        setHouseholdSize(household_size);
+        setDietRestrictions(dietary_restrictions);
       } catch {
         router.push("/auth/login");
         return;
@@ -344,11 +361,34 @@ export default function ProfilePage() {
         </Link>
       </motion.div>
 
-      {/* Sign out */}
+      {/* Feedback */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.26 }}
+      >
+        <button
+          onClick={() => setFeedbackOpen(true)}
+          className="w-full flex items-center justify-between bg-[#0f172a] border border-white/5 hover:border-teal-500/20 rounded-2xl p-4 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-teal-500/10 flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-teal-400" />
+            </div>
+            <div className="text-left">
+              <p className="text-[#f8fafc] text-sm font-semibold">Feedback geben</p>
+              <p className="text-[#475569] text-xs">Bug, Idee oder Lob</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[#475569] group-hover:text-teal-400 transition-colors" />
+        </button>
+      </motion.div>
+
+      {/* Sign out */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.30 }}
       >
         <button
           onClick={handleSignOut}
@@ -367,6 +407,7 @@ export default function ProfilePage() {
       </motion.div>
 
       <div className="h-4" />
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }

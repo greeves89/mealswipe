@@ -217,7 +217,7 @@ export default function LandingPage() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
             <ChefHat className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight">MealSwipe</span>
+          <span className="font-bold text-lg tracking-tight">forkly</span>
         </div>
         <div className="hidden md:flex items-center gap-6 text-sm text-[#94a3b8]">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -225,10 +225,10 @@ export default function LandingPage() {
           <a href="#compare" className="hover:text-white transition-colors">Vergleich</a>
         </div>
         <Link
-          href="/app"
+          href="/auth/register"
           className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
         >
-          App öffnen <ArrowRight className="w-4 h-4" />
+          Registrieren <ArrowRight className="w-4 h-4" />
         </Link>
       </nav>
 
@@ -278,7 +278,7 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
             <Link
-              href="/app"
+              href="/auth/register"
               className="group flex items-center justify-center gap-3 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-white px-8 py-4 rounded-2xl text-lg font-bold transition-all hover:scale-105 shadow-[0_0_40px_rgba(20,184,166,0.3)]"
             >
               Jetzt kostenlos starten
@@ -399,7 +399,7 @@ export default function LandingPage() {
               </span>
             </h2>
             <p className="text-[#94a3b8] text-lg max-w-xl mx-auto">
-              MealSwipe ist vollgepackt mit Features, die Mahlzeitenplanung zur Freude machen.
+              forkly ist vollgepackt mit Features, die Mahlzeitenplanung zur Freude machen.
             </p>
           </AnimatedSection>
 
@@ -424,7 +424,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <AnimatedSection className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black mb-4">
-              MealSwipe vs.{" "}
+              forkly vs.{" "}
               <span className="text-[#64748b]">die Anderen</span>
             </h2>
           </AnimatedSection>
@@ -433,7 +433,7 @@ export default function LandingPage() {
             <div className="rounded-3xl bg-[#0f172a] border border-white/5 overflow-hidden">
               <div className="grid grid-cols-4 bg-[#1e293b]/50 p-4 text-sm font-semibold text-[#94a3b8]">
                 <div>Feature</div>
-                <div className="text-center text-teal-400">MealSwipe</div>
+                <div className="text-center text-teal-400">forkly</div>
                 <div className="text-center">HelloFresh</div>
                 <div className="text-center">Chefkoch</div>
               </div>
@@ -523,7 +523,7 @@ export default function LandingPage() {
                   </ul>
 
                   <Link
-                    href="/app"
+                    href="/auth/register"
                     className={`w-full text-center py-3 rounded-2xl font-semibold transition-all hover:scale-[1.02] block ${
                       plan.highlight
                         ? "bg-teal-500 hover:bg-teal-400 text-white shadow-[0_0_20px_rgba(20,184,166,0.3)]"
@@ -555,7 +555,7 @@ export default function LandingPage() {
                 Tausende Haushalte planen schon smarter. Kostenlos, ohne Kreditkarte.
               </p>
               <Link
-                href="/app"
+                href="/auth/register"
                 className="group inline-flex items-center gap-3 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-white px-10 py-5 rounded-2xl text-xl font-bold transition-all hover:scale-105 shadow-[0_0_50px_rgba(20,184,166,0.4)]"
               >
                 Jetzt kostenlos starten
@@ -573,15 +573,15 @@ export default function LandingPage() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
               <ChefHat className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold">MealSwipe</span>
+            <span className="font-bold">forkly</span>
           </div>
           <p className="text-[#64748b] text-sm">
-            © 2026 MealSwipe. Mit ❤️ für bessere Mahlzeiten.
+            © 2026 forkly. Mit ❤️ für bessere Mahlzeiten.
           </p>
           <div className="flex gap-6 text-sm text-[#64748b]">
-            <a href="#" className="hover:text-white transition-colors">Datenschutz</a>
-            <a href="#" className="hover:text-white transition-colors">Impressum</a>
-            <a href="#" className="hover:text-white transition-colors">Kontakt</a>
+            <a href="/datenschutz" className="hover:text-white transition-colors">Datenschutz</a>
+            <a href="/impressum" className="hover:text-white transition-colors">Impressum</a>
+            <a href="mailto:daniel.alisch@me.com" className="hover:text-white transition-colors">Kontakt</a>
           </div>
         </div>
       </footer>

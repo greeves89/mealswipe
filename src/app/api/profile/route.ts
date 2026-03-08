@@ -17,7 +17,20 @@ export async function PATCH(req: NextRequest) {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { household_name, household_people, household_diets, preferred_cuisines, time_budget, cooking_skill } = await req.json();
+  const body = await req.json();
+
+  // Support both old field names (onboarding) and new field names (profile page)
+  const household_name = body.household_name ?? body.display_name ?? null;
+  const household_people = body.household_people ?? body.household_size ?? null;
+  const household_diets = body.household_diets ?? body.dietary_restrictions ?? null;
+  const preferred_cuisines = body.preferred_cuisines ?? null;
+  const time_budget = body.time_budget ?? null;
+  const cooking_skill = body.cooking_skill ?? null;
+
+  // Update display name in users table if provided
+  if (body.display_name) {
+    await query("UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2", [body.display_name, user.id]);
+  }
 
   await query(
     `INSERT INTO profiles (user_id, household_name, household_people, household_diets, preferred_cuisines, time_budget, cooking_skill)

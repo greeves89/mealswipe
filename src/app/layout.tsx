@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { CookieBanner } from "@/components/CookieBanner";
 
 export const viewport: Viewport = {
   themeColor: "#0f766e",
@@ -10,7 +11,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "MealSwipe — Mahlzeiten, die du liebst",
+  title: "forkly — Mahlzeiten, die du liebst",
   description:
     "Scanne Rezeptkarten, swipe deine Woche, lass einkaufen. KI-gestützter Mahlzeitenplaner.",
   keywords: ["Mahlzeitenplaner", "Rezepte", "Einkaufsliste", "HelloFresh", "KI"],
@@ -18,10 +19,10 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "MealSwipe",
+    title: "forkly",
   },
   openGraph: {
-    title: "MealSwipe — Mahlzeiten, die du liebst",
+    title: "forkly — Mahlzeiten, die du liebst",
     description: "KI-gestützter Mahlzeitenplaner. Rezepte swipen, Wochenplan erstellen, Einkaufen.",
     type: "website",
   },
@@ -40,6 +41,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ServiceWorkerRegister />
         {children}
+        <CookieBanner />
       </body>
     </html>
   );

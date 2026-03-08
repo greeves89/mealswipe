@@ -67,8 +67,7 @@ export default function RegisterPage() {
       }
 
       // Registration successful — redirect to onboarding
-      router.push("/onboarding");
-      router.refresh();
+      window.location.replace("/onboarding");
     } catch {
       setError("Netzwerkfehler. Bitte versuche es erneut.");
       setLoading(false);

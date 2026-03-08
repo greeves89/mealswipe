@@ -83,7 +83,39 @@ CREATE TABLE IF NOT EXISTS shopping_lists (
   UNIQUE (user_id, week_start)
 );
 
+-- ─── PANTRY / LAGER ─────────────────────
+CREATE TABLE IF NOT EXISTS pantry_items (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  quantity    NUMERIC(10,2) DEFAULT 1,
+  unit        TEXT DEFAULT '',
+  category    TEXT DEFAULT 'Sonstiges',
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── GLOBAL RECIPE CACHE (Spoonacular / Admin-Scan) ──
+CREATE TABLE IF NOT EXISTS recipes (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  image        TEXT,
+  cuisine      TEXT,
+  time_minutes INT,
+  servings     INT,
+  calories     INT,
+  difficulty   TEXT,
+  tags         TEXT[],
+  ingredients  JSONB DEFAULT '[]',
+  steps        JSONB DEFAULT '[]',
+  rating       FLOAT,
+  source       TEXT DEFAULT 'spoonacular',
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ─── INDEXES ─────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_meal_plans_user_day ON meal_plans (user_id, day);
 CREATE INDEX IF NOT EXISTS idx_reactions_user ON recipe_reactions (user_id);
 CREATE INDEX IF NOT EXISTS idx_custom_recipes_user ON custom_recipes (user_id);
+CREATE INDEX IF NOT EXISTS idx_pantry_user ON pantry_items (user_id);

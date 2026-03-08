@@ -25,11 +25,13 @@ export function useRecipes(filters?: RecipeFilters) {
     fetch(`/api/recipes?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.noApiKey || !data.recipes?.length) {
-          setRecipes(RECIPES);
-        } else {
-          setRecipes(data.recipes);
+        const list: Recipe[] = (data.noApiKey || !data.recipes?.length) ? [...RECIPES] : [...data.recipes];
+        // Fisher-Yates shuffle for random order every session
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [list[i], list[j]] = [list[j], list[i]];
         }
+        setRecipes(list);
       })
       .catch(() => {
         setRecipes(RECIPES);

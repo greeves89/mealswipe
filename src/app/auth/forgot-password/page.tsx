@@ -33,10 +33,10 @@ export default function ForgotPasswordPage() {
           <p className="text-[#475569] text-xs">
             Bitte wende dich in der Zwischenzeit an{" "}
             <a
-              href="mailto:support@mealswipe.app"
+              href="mailto:support@forkly.site"
               className="text-teal-400 hover:underline"
             >
-              support@mealswipe.app
+              support@forkly.site
             </a>
           </p>
         </div>

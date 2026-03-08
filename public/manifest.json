@@ -1,6 +1,6 @@
 {
-  "name": "MealSwipe",
-  "short_name": "MealSwipe",
+  "name": "forkly",
+  "short_name": "forkly",
   "description": "Swipe deine Mahlzeiten für die Woche",
   "start_url": "/app",
   "display": "standalone",

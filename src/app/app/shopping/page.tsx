@@ -100,7 +100,7 @@ export default function ShoppingPage() {
       .map((item) => `${item.checked ? "✓" : "○"} ${item.name} — ${item.amount}`)
       .join("\n");
     if (navigator.share) {
-      await navigator.share({ title: "MealSwipe Einkaufsliste", text });
+      await navigator.share({ title: "forkly Einkaufsliste", text });
     } else {
       await navigator.clipboard.writeText(text);
       alert("Liste in die Zwischenablage kopiert!");

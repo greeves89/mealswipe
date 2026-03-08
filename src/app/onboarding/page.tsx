@@ -151,7 +151,7 @@ export default function OnboardingPage() {
                 <h1 className="text-4xl font-black mb-4">
                   Willkommen bei{" "}
                   <span className="bg-gradient-to-r from-teal-400 to-teal-300 bg-clip-text text-transparent">
-                    MealSwipe
+                    forkly
                   </span>
                 </h1>
                 <p className="text-[#94a3b8] text-lg leading-relaxed max-w-xs mb-6">

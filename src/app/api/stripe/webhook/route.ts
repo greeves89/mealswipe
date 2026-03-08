@@ -1,5 +1,5 @@
 import { stripe } from "@/lib/stripe";
-import { query, queryOne } from "@/lib/db";
+import { query } from "@/lib/db";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
@@ -32,13 +32,10 @@ export async function POST(req: NextRequest) {
     if (userId && plan) {
       try {
         await query(
-          `INSERT INTO profiles (id, plan, stripe_customer_id, updated_at)
-           VALUES ($1, $2, $3, NOW())
-           ON CONFLICT (id) DO UPDATE
-           SET plan = EXCLUDED.plan,
-               stripe_customer_id = EXCLUDED.stripe_customer_id,
-               updated_at = NOW()`,
-          [userId, plan, session.customer as string]
+          `UPDATE users
+           SET plan = $1, stripe_customer_id = $2, updated_at = NOW()
+           WHERE id = $3`,
+          [plan, session.customer as string, userId]
         );
       } catch {
         // DB may not be configured — ignore gracefully
@@ -52,17 +49,10 @@ export async function POST(req: NextRequest) {
       typeof sub.customer === "string" ? sub.customer : sub.customer.id;
 
     try {
-      const profile = await queryOne<{ id: string }>(
-        "SELECT id FROM profiles WHERE stripe_customer_id = $1",
+      await query(
+        "UPDATE users SET plan = 'free', updated_at = NOW() WHERE stripe_customer_id = $1",
         [customerId]
       );
-
-      if (profile) {
-        await query(
-          "UPDATE profiles SET plan = 'free', updated_at = NOW() WHERE id = $1",
-          [profile.id]
-        );
-      }
     } catch {
       // DB may not be configured — ignore gracefully
     }
@@ -74,20 +64,26 @@ export async function POST(req: NextRequest) {
       typeof sub.customer === "string" ? sub.customer : sub.customer.id;
 
     if (sub.status === "active") {
-      try {
-        const profile = await queryOne<{ id: string }>(
-          "SELECT id FROM profiles WHERE stripe_customer_id = $1",
-          [customerId]
-        );
-
-        if (profile) {
-          await query(
-            "UPDATE profiles SET updated_at = NOW() WHERE id = $1",
-            [profile.id]
-          );
+      const priceId = sub.items.data[0]?.price.id;
+      if (priceId) {
+        const plusPriceId = process.env.STRIPE_PLUS_PRICE_ID;
+        const familyPriceId = process.env.STRIPE_FAMILY_PRICE_ID;
+        const newPlan =
+          priceId === familyPriceId
+            ? "family"
+            : priceId === plusPriceId
+            ? "plus"
+            : null;
+        if (newPlan) {
+          try {
+            await query(
+              "UPDATE users SET plan = $1, updated_at = NOW() WHERE stripe_customer_id = $2",
+              [newPlan, customerId]
+            );
+          } catch {
+            // DB may not be configured — ignore gracefully
+          }
         }
-      } catch {
-        // DB may not be configured — ignore gracefully
       }
     }
   }

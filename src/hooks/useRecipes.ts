@@ -9,8 +9,8 @@ interface RecipeFilters {
 }
 
 export function useRecipes(filters?: RecipeFilters) {
-  const [recipes, setRecipes] = useState<Recipe[]>(RECIPES);
-  const [loading, setLoading] = useState(false);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

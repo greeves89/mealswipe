@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
   if (!isProtected) return NextResponse.next();
 
   // Get JWT token from cookie
-  const token = request.cookies.get("mealswipe-session")?.value;
+  const token = request.cookies.get("forkly-session")?.value;
   if (!token) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";

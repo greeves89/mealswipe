@@ -5,7 +5,7 @@ let pool: Pool | null = null;
 export function getDb(): Pool {
   if (!pool) {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL || "postgresql://mealswipe:mealswipe@localhost:5432/mealswipe",
+      connectionString: process.env.DATABASE_URL || "postgresql://forkly:forkly@localhost:5432/forkly",
       max: 10,
       idleTimeoutMillis: 30000,
     });

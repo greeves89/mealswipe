@@ -15,6 +15,10 @@ import {
   Check,
   Utensils,
   MessageSquare,
+  Copy,
+  UserPlus,
+  UserMinus,
+  RefreshCw,
 } from "lucide-react";
 import { FeedbackModal } from "@/components/FeedbackModal";
 
@@ -52,6 +56,13 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [household, setHousehold] = useState<{
+    id: string; invite_code: string; name: string; is_owner: boolean;
+  } | null>(null);
+  const [householdMembers, setHouseholdMembers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [joinCode, setJoinCode] = useState("");
+  const [householdAction, setHouseholdAction] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -90,6 +101,16 @@ export default function ProfilePage() {
         });
         setHouseholdSize(household_size);
         setDietRestrictions(dietary_restrictions);
+
+        // Load household info
+        try {
+          const hhRes = await fetch("/api/household");
+          if (hhRes.ok) {
+            const { household: hh, members } = await hhRes.json();
+            setHousehold(hh ?? null);
+            setHouseholdMembers(members ?? []);
+          }
+        } catch { /* ignore */ }
       } catch {
         router.push("/auth/login");
         return;
@@ -136,6 +157,37 @@ export default function ProfilePage() {
     setDietRestrictions((prev) =>
       prev.includes(diet) ? prev.filter((d) => d !== diet) : [...prev, diet]
     );
+  };
+
+  const handleHouseholdAction = async (action: string, extra?: object) => {
+    setHouseholdAction(action);
+    try {
+      const res = await fetch("/api/household", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error ?? "Fehler"); return; }
+
+      // Refresh household
+      const hhRes = await fetch("/api/household");
+      if (hhRes.ok) {
+        const { household: hh, members } = await hhRes.json();
+        setHousehold(hh ?? null);
+        setHouseholdMembers(members ?? []);
+      }
+      if (action === "join") setJoinCode("");
+    } finally {
+      setHouseholdAction(null);
+    }
+  };
+
+  const copyInviteCode = async () => {
+    if (!household?.invite_code) return;
+    await navigator.clipboard.writeText(household.invite_code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const planLabel: Record<string, string> = {
@@ -308,6 +360,141 @@ export default function ProfilePage() {
           "Änderungen speichern"
         )}
       </motion.button>
+
+      {/* Family Sharing */}
+      {currentPlan === "family" && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+          className="bg-[#0f172a] rounded-2xl border border-orange-500/20 p-5 space-y-4"
+        >
+          <h3 className="text-[#f8fafc] font-semibold flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4 text-orange-400" />
+            Family Sharing
+          </h3>
+
+          {household ? (
+            <>
+              {/* Invite code */}
+              <div>
+                <p className="text-xs text-[#64748b] font-semibold uppercase tracking-wider mb-2">
+                  Einladungs-Code
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#1e293b] rounded-xl px-4 py-3 font-mono text-lg font-bold tracking-widest text-orange-400 text-center border border-orange-500/20">
+                    {household.invite_code}
+                  </div>
+                  <button
+                    onClick={copyInviteCode}
+                    className="w-12 h-12 flex items-center justify-center bg-[#1e293b] hover:bg-orange-500/10 rounded-xl border border-white/5 hover:border-orange-500/30 transition-all"
+                    title="Code kopieren"
+                  >
+                    {copiedCode ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-[#94a3b8]" />}
+                  </button>
+                  {household.is_owner && (
+                    <button
+                      onClick={() => handleHouseholdAction("regenerate_code")}
+                      disabled={householdAction === "regenerate_code"}
+                      className="w-12 h-12 flex items-center justify-center bg-[#1e293b] hover:bg-[#263548] rounded-xl border border-white/5 transition-all"
+                      title="Neuen Code generieren"
+                    >
+                      {householdAction === "regenerate_code"
+                        ? <Loader2 className="w-4 h-4 animate-spin text-[#94a3b8]" />
+                        : <RefreshCw className="w-4 h-4 text-[#94a3b8]" />}
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-[#475569] mt-1.5">
+                  Code teilen → andere können deinem Haushalt beitreten
+                </p>
+              </div>
+
+              {/* Members list */}
+              {householdMembers.length > 0 && (
+                <div>
+                  <p className="text-xs text-[#64748b] font-semibold uppercase tracking-wider mb-2">
+                    Mitglieder ({householdMembers.length})
+                  </p>
+                  <div className="bg-[#1e293b] rounded-xl divide-y divide-white/5">
+                    {householdMembers.map((member) => (
+                      <div key={member.id} className="flex items-center gap-3 px-3 py-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-400/30 to-teal-600/30 flex items-center justify-center text-teal-400 text-sm font-bold shrink-0">
+                          {member.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{member.name}</p>
+                          <p className="text-xs text-[#475569] truncate">{member.email}</p>
+                        </div>
+                        {household.is_owner && member.id !== (householdMembers.find(() => true)?.id) && (
+                          <button
+                            onClick={() => handleHouseholdAction("kick", { member_id: member.id })}
+                            disabled={!!householdAction}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-500/10 transition-colors"
+                            title="Entfernen"
+                          >
+                            <UserMinus className="w-3.5 h-3.5 text-[#475569] hover:text-red-400" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Leave button (non-owners) */}
+              {!household.is_owner && (
+                <button
+                  onClick={() => handleHouseholdAction("leave")}
+                  disabled={!!householdAction}
+                  className="w-full py-2.5 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20 hover:bg-red-500/20 transition-all"
+                >
+                  Haushalt verlassen
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Create or join */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleHouseholdAction("create")}
+                  disabled={!!householdAction}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 text-sm font-semibold hover:bg-orange-500/20 transition-all"
+                >
+                  {householdAction === "create"
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <UserPlus className="w-4 h-4" />}
+                  Neuen Haushalt erstellen
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-white/5" />
+                  <span className="text-xs text-[#475569]">oder</span>
+                  <div className="flex-1 h-px bg-white/5" />
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="Einladungs-Code"
+                    maxLength={6}
+                    className="flex-1 bg-[#1e293b] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono tracking-widest placeholder-[#334155] focus:outline-none focus:border-orange-500/40 uppercase"
+                  />
+                  <button
+                    onClick={() => handleHouseholdAction("join", { invite_code: joinCode })}
+                    disabled={joinCode.length < 6 || !!householdAction}
+                    className="px-4 py-3 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-sm font-bold disabled:opacity-40 transition-all"
+                  >
+                    {householdAction === "join" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Beitreten"}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </motion.div>
+      )}
 
       {/* Plan upgrade link */}
       <motion.div

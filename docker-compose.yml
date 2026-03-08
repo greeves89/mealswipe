@@ -3,26 +3,26 @@ version: "3.8"
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: mealswipe-db
+    container_name: forkly-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-mealswipe}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mealswipe_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-mealswipe}
+      POSTGRES_USER: ${POSTGRES_USER:-forkly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forkly_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-forkly}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mealswipe}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-forkly}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   app:
     build: .
-    container_name: mealswipe-app
+    container_name: forkly-app
     restart: unless-stopped
     depends_on:
       postgres:
@@ -31,7 +31,7 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-mealswipe}:${POSTGRES_PASSWORD:-mealswipe_secret}@postgres:5432/${POSTGRES_DB:-mealswipe}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-forkly}:${POSTGRES_PASSWORD:-forkly_secret}@postgres:5432/${POSTGRES_DB:-forkly}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production-use-a-long-random-string}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       # Optional — leave empty for demo mode
@@ -44,8 +44,8 @@ services:
       STRIPE_FAMILY_PRICE_ID: ${STRIPE_FAMILY_PRICE_ID:-}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mealswipe.rule=Host(`${APP_DOMAIN:-mealswipe.localhost}`)"
-      - "traefik.http.services.mealswipe.loadbalancer.server.port=3000"
+      - "traefik.http.routers.forkly.rule=Host(`${APP_DOMAIN:-forkly.localhost}`)"
+      - "traefik.http.services.forkly.loadbalancer.server.port=3000"
 
 volumes:
   postgres_data:

@@ -59,7 +59,7 @@ export function getWeekDays() {
   return getWeekDaysLocal();
 }
 
-const LS_KEY = "mealswipe-state-v2";
+const LS_KEY = "forkly-state-v2";
 
 function loadLocal() {
   try {

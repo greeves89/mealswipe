@@ -119,3 +119,14 @@ CREATE INDEX IF NOT EXISTS idx_meal_plans_user_day ON meal_plans (user_id, day);
 CREATE INDEX IF NOT EXISTS idx_reactions_user ON recipe_reactions (user_id);
 CREATE INDEX IF NOT EXISTS idx_custom_recipes_user ON custom_recipes (user_id);
 CREATE INDEX IF NOT EXISTS idx_pantry_user ON pantry_items (user_id);
+
+-- ─── HOUSEHOLDS (Family Plan Sharing) ───
+CREATE TABLE IF NOT EXISTS households (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  owner_id    UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  invite_code TEXT UNIQUE NOT NULL,
+  name        TEXT DEFAULT 'Mein Haushalt',
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS household_id UUID REFERENCES households(id) ON DELETE SET NULL;

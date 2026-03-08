@@ -2,9 +2,9 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "mealswipe-dev-secret-change-in-production-please"
+  process.env.JWT_SECRET || "forkly-dev-secret-change-in-production-please"
 );
-const COOKIE_NAME = "mealswipe-session";
+const COOKIE_NAME = "forkly-session";
 const EXPIRES_IN = 60 * 60 * 24 * 30; // 30 days
 
 export interface SessionUser {

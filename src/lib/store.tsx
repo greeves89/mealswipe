@@ -33,7 +33,10 @@ interface AppState {
   addToLiked: (recipe: Recipe) => void;
   addToDisliked: (id: string) => void;
   generateShoppingList: () => void;
+  setShoppingList: (items: ShoppingItem[]) => void;
+  clearShoppingList: () => void;
   toggleShoppingItem: (id: string) => void;
+  getShoppingListFromPlan: () => ShoppingItem[];
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -205,7 +208,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [userId]);
 
-  const generateShoppingList = useCallback(() => {
+  const getShoppingListFromPlan = useCallback((): ShoppingItem[] => {
     const items: ShoppingItem[] = [];
     const seen = new Set<string>();
     Object.values(weeklyPlan).forEach((recipe) => {
@@ -217,8 +220,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       });
     });
-    setShoppingList(items);
+    return items;
   }, [weeklyPlan]);
+
+  const generateShoppingList = useCallback(() => {
+    setShoppingList(getShoppingListFromPlan());
+  }, [getShoppingListFromPlan]);
+
+  const setShoppingListFn = useCallback((items: ShoppingItem[]) => {
+    setShoppingList(items);
+  }, []);
+
+  const clearShoppingList = useCallback(() => {
+    setShoppingList([]);
+  }, []);
 
   const toggleShoppingItem = useCallback((id: string) => {
     setShoppingList((prev) => prev.map((item) => item.id === id ? { ...item, checked: !item.checked } : item));
@@ -228,7 +243,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       household, weeklyPlan, shoppingList, likedRecipes, dislikedIds, userId,
       setHousehold, addToWeeklyPlan, removeFromPlan, addToLiked, addToDisliked,
-      generateShoppingList, toggleShoppingItem,
+      generateShoppingList, setShoppingList: setShoppingListFn, clearShoppingList,
+      toggleShoppingItem, getShoppingListFromPlan,
     }}>
       {children}
     </AppContext.Provider>

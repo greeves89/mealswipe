@@ -4,7 +4,32 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Clock, Flame, ChefHat, X, Star, BookOpen, Filter,
   ChevronLeft, ChevronRight, CheckCircle2, Circle, PlayCircle, ShoppingCart,
+  AlertTriangle, PackageCheck,
 } from "lucide-react";
+
+interface PantryItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+}
+
+async function fetchPantry(): Promise<PantryItem[]> {
+  try {
+    const res = await fetch("/api/pantry");
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.items ?? [];
+  } catch { return []; }
+}
+
+function pantryMatch(ingredientName: string, pantryItems: PantryItem[]): PantryItem | null {
+  const needle = ingredientName.toLowerCase().trim();
+  return pantryItems.find(p => {
+    const hay = p.name.toLowerCase();
+    return hay.includes(needle) || needle.includes(hay);
+  }) ?? null;
+}
 
 interface Recipe {
   id: string;
@@ -86,6 +111,44 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
   const [step, setStep] = useState(0);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [view, setView] = useState<"ingredients" | "steps">("ingredients");
+  const [pantryItems, setPantryItems] = useState<PantryItem[]>([]);
+  const [deducted, setDeducted] = useState(false);
+  const [missingWarning, setMissingWarning] = useState<string[]>([]);
+
+  useEffect(() => { fetchPantry().then(setPantryItems); }, []);
+
+  const handleFinish = async () => {
+    if (deducted) { onClose(); return; }
+    const missing: string[] = [];
+    for (const ing of recipe.ingredients) {
+      const match = pantryMatch(ing.name, pantryItems);
+      if (match) {
+        if (match.quantity <= 1) {
+          await fetch(`/api/pantry?id=${match.id}`, { method: "DELETE" });
+        } else {
+          await fetch("/api/pantry", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: match.id, quantity: match.quantity - 1 }),
+          });
+        }
+      } else {
+        missing.push(ing.name);
+      }
+    }
+    if (missing.length > 0) {
+      setMissingWarning(missing);
+      return;
+    }
+    setDeducted(true);
+    onClose();
+  };
+
+  const handleConfirmFinish = () => {
+    setDeducted(true);
+    setMissingWarning([]);
+    onClose();
+  };
 
   const totalSteps = recipe.steps.length;
   const progress = totalSteps > 0 ? ((step + 1) / totalSteps) * 100 : 100;
@@ -142,29 +205,45 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
             </span>
           </div>
           <div className="space-y-2">
-            {recipe.ingredients.map((ing, i) => (
-              <button
-                key={i}
-                onClick={() => toggleIngredient(i)}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
-                  checkedIngredients.has(i)
-                    ? "bg-teal-500/10 border-teal-500/30"
-                    : "bg-[#0f172a] border-white/5"
-                }`}
-              >
-                {checkedIngredients.has(i)
-                  ? <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0" />
-                  : <Circle className="w-5 h-5 text-[#334155] shrink-0" />
-                }
-                <span className={`flex-1 text-sm font-medium ${checkedIngredients.has(i) ? "text-teal-300 line-through" : "text-white"}`}>
-                  {ing.name}
-                </span>
-                {ing.amount && (
-                  <span className="text-xs text-[#64748b] shrink-0">{ing.amount}</span>
-                )}
-              </button>
-            ))}
+            {recipe.ingredients.map((ing, i) => {
+              const inPantry = pantryMatch(ing.name, pantryItems);
+              return (
+                <button
+                  key={i}
+                  onClick={() => toggleIngredient(i)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                    checkedIngredients.has(i)
+                      ? "bg-teal-500/10 border-teal-500/30"
+                      : inPantry
+                        ? "bg-[#0f172a] border-green-500/20"
+                        : "bg-[#0f172a] border-orange-500/20"
+                  }`}
+                >
+                  {checkedIngredients.has(i)
+                    ? <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0" />
+                    : <Circle className="w-5 h-5 text-[#334155] shrink-0" />
+                  }
+                  <span className={`flex-1 text-sm font-medium ${checkedIngredients.has(i) ? "text-teal-300 line-through" : "text-white"}`}>
+                    {ing.name}
+                  </span>
+                  {ing.amount && (
+                    <span className="text-xs text-[#64748b] shrink-0 mr-1">{ing.amount}</span>
+                  )}
+                  {pantryItems.length > 0 && (
+                    inPantry
+                      ? <PackageCheck className="w-4 h-4 text-green-400 shrink-0" title={`Im Lager: ${inPantry.quantity} ${inPantry.unit}`} />
+                      : <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" title="Nicht im Lager" />
+                  )}
+                </button>
+              );
+            })}
           </div>
+          {pantryItems.length > 0 && (
+            <div className="mt-3 flex gap-3 text-xs text-[#64748b]">
+              <span className="flex items-center gap-1"><PackageCheck className="w-3.5 h-3.5 text-green-400" /> Im Lager</span>
+              <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 text-orange-400" /> Fehlt im Lager</span>
+            </div>
+          )}
           {checkedIngredients.size === recipe.ingredients.length && (
             <motion.button
               initial={{ opacity: 0, y: 8 }}
@@ -243,11 +322,60 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
               <motion.button
                 initial={{ scale: 0.95 }}
                 animate={{ scale: 1 }}
-                onClick={onClose}
+                onClick={handleFinish}
                 className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl bg-green-500 hover:bg-green-400 text-white font-bold"
               >
-                ✓ Fertig!
+                ✓ Fertig & Lager aktualisieren
               </motion.button>
+
+              {/* Missing items warning overlay */}
+              <AnimatePresence>
+                {missingWarning.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[70] bg-black/80 flex items-end p-4"
+                  >
+                    <motion.div
+                      initial={{ y: "100%" }}
+                      animate={{ y: 0 }}
+                      exit={{ y: "100%" }}
+                      transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                      className="bg-[#0f172a] rounded-3xl p-5 w-full"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertTriangle className="w-5 h-5 text-orange-400" />
+                        <h2 className="font-bold text-lg">Nicht im Lager</h2>
+                      </div>
+                      <p className="text-[#64748b] text-sm mb-3">
+                        Diese Zutaten fehlen in deinem Lager:
+                      </p>
+                      <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl p-3 mb-5 space-y-1">
+                        {missingWarning.map((name) => (
+                          <p key={name} className="text-sm text-orange-300 flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {name}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setMissingWarning([])}
+                          className="flex-1 py-3 rounded-2xl bg-[#1e293b] text-[#94a3b8] text-sm font-semibold"
+                        >
+                          Zurück
+                        </button>
+                        <button
+                          onClick={handleConfirmFinish}
+                          className="flex-1 py-3 rounded-2xl bg-green-500 hover:bg-green-400 text-white text-sm font-bold"
+                        >
+                          Trotzdem fertig
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             )}
           </div>
         </div>

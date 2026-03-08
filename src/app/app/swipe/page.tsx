@@ -2,8 +2,9 @@
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { useState, useCallback } from "react";
 import { useApp } from "@/lib/store";
-import { RECIPES, Recipe } from "@/lib/recipes";
-import { Heart, X, Clock, Flame, Star, ChefHat, RotateCcw, Zap } from "lucide-react";
+import { Recipe } from "@/lib/recipes";
+import { useRecipes } from "@/hooks/useRecipes";
+import { Heart, X, Clock, Flame, Star, ChefHat, RotateCcw, Zap, Loader2 } from "lucide-react";
 
 const SWIPE_THRESHOLD = 100;
 
@@ -170,8 +171,9 @@ export default function SwipePage() {
   const [index, setIndex] = useState(0);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const { recipes, loading: recipesLoading } = useRecipes();
 
-  const deck = RECIPES;
+  const deck = recipes;
   const done = index >= deck.length;
   const remaining = deck.slice(index);
   const progress = Math.min((index / deck.length) * 100, 100);
@@ -197,6 +199,15 @@ export default function SwipePage() {
     },
     [index, deck, addToLiked, addToDisliked]
   );
+
+  if (recipesLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-140px)] gap-4">
+        <Loader2 className="w-10 h-10 text-teal-400 animate-spin" />
+        <p className="text-[#64748b] text-sm">Rezepte werden geladen...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] px-4 py-4">

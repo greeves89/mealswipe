@@ -231,8 +231,8 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
                   )}
                   {pantryItems.length > 0 && (
                     inPantry
-                      ? <PackageCheck className="w-4 h-4 text-green-400 shrink-0" title={`Im Lager: ${inPantry.quantity} ${inPantry.unit}`} />
-                      : <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" title="Nicht im Lager" />
+                      ? <PackageCheck className="w-4 h-4 text-green-400 shrink-0" />
+                      : <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" />
                   )}
                 </button>
               );

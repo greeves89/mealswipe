@@ -319,6 +319,7 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
                 Weiter <ChevronRight className="w-5 h-5" />
               </button>
             ) : (
+              <>
               <motion.button
                 initial={{ scale: 0.95 }}
                 animate={{ scale: 1 }}
@@ -376,6 +377,7 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
                   </motion.div>
                 )}
               </AnimatePresence>
+              </>
             )}
           </div>
         </div>

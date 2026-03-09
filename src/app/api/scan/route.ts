@@ -124,30 +124,40 @@ Falls kein Rezept erkennbar ist, antworte mit: {"error": "Kein Rezept erkannt"}`
 
 // Save scanned recipe to DB
 export async function PUT(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await getSession();
+    if (!session) {
+      console.error("Scan PUT: no session found");
+      return NextResponse.json({ error: "Nicht eingeloggt" }, { status: 401 });
+    }
 
-  const recipe = await req.json();
+    const recipe = await req.json();
+    console.log("Scan PUT: saving recipe", recipe.name, "for user", session.id);
 
-  const result = await query<{ id: string }>(
-    `INSERT INTO custom_recipes
-       (user_id, name, description, cuisine, time, servings, calories, difficulty, tags, ingredients, steps, source)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Gescannt')
-     RETURNING id`,
-    [
-      session.id,
-      recipe.name,
-      recipe.description ?? "",
-      recipe.cuisine ?? "International",
-      recipe.time ?? 30,
-      recipe.servings ?? 4,
-      recipe.calories ?? 0,
-      recipe.difficulty ?? "Mittel",
-      recipe.tags ?? [],
-      JSON.stringify(recipe.ingredients ?? []),
-      recipe.steps ?? [],
-    ]
-  );
+    const result = await query<{ id: string }>(
+      `INSERT INTO custom_recipes
+         (user_id, name, description, cuisine, time, servings, calories, difficulty, tags, ingredients, steps, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Gescannt')
+       RETURNING id`,
+      [
+        session.id,
+        recipe.name,
+        recipe.description ?? "",
+        recipe.cuisine ?? "International",
+        recipe.time ?? 30,
+        recipe.servings ?? 4,
+        recipe.calories ?? 0,
+        recipe.difficulty ?? "Mittel",
+        recipe.tags ?? [],
+        recipe.ingredients ?? [],
+        recipe.steps ?? [],
+      ]
+    );
 
-  return NextResponse.json({ ok: true, id: result[0]?.id });
+    console.log("Scan PUT: saved recipe id", result[0]?.id);
+    return NextResponse.json({ ok: true, id: result[0]?.id });
+  } catch (err) {
+    console.error("Scan PUT error:", err);
+    return NextResponse.json({ error: "Speichern fehlgeschlagen: " + String(err) }, { status: 500 });
+  }
 }

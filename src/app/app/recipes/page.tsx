@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Clock, Flame, ChefHat, X, Star, BookOpen, Filter,
   ChevronLeft, ChevronRight, CheckCircle2, Circle, PlayCircle, ShoppingCart,
-  AlertTriangle, PackageCheck,
+  AlertTriangle, PackageCheck, Trash2,
 } from "lucide-react";
 
 interface PantryItem {
@@ -61,7 +61,7 @@ const DIFFICULTY_COLOR: Record<string, string> = {
   Anspruchsvoll: "text-red-400 bg-red-400/10",
 };
 
-function RecipeCard({ recipe, onSelect }: { recipe: Recipe; onSelect: (r: Recipe) => void }) {
+function RecipeCard({ recipe, onSelect, onDelete }: { recipe: Recipe; onSelect: (r: Recipe) => void; onDelete?: (id: string) => void }) {
   const emoji = recipe.image
     ? null
     : ["🍝", "🍜", "🌮", "🥗", "🍣", "🥘", "🍕", "🍛", "🥩", "🍲"][
@@ -69,14 +69,14 @@ function RecipeCard({ recipe, onSelect }: { recipe: Recipe; onSelect: (r: Recipe
       ];
 
   return (
-    <motion.button
+    <motion.div
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      onClick={() => onSelect(recipe)}
-      className="w-full text-left rounded-2xl bg-[#0f172a] border border-white/5 overflow-hidden hover:border-teal-500/30 transition-all active:scale-[0.98]"
+      className="relative w-full text-left rounded-2xl bg-[#0f172a] border border-white/5 overflow-hidden hover:border-teal-500/30 transition-all"
     >
+      <button onClick={() => onSelect(recipe)} className="w-full text-left active:scale-[0.98] transition-all">
       <div className="relative h-36 bg-[#1e293b] flex items-center justify-center overflow-hidden">
         {recipe.image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -103,7 +103,16 @@ function RecipeCard({ recipe, onSelect }: { recipe: Recipe; onSelect: (r: Recipe
           <span className="flex items-center gap-1 ml-auto"><Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> {recipe.rating.toFixed(1)}</span>
         </div>
       </div>
-    </motion.button>
+      </button>
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(recipe.id); }}
+          className="absolute bottom-3 right-3 w-7 h-7 rounded-full bg-red-500/10 hover:bg-red-500/30 flex items-center justify-center text-red-400 transition-all"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </motion.div>
   );
 }
 
@@ -562,6 +571,17 @@ export default function RecipesPage() {
     finally { setCustomLoading(false); }
   }, []);
 
+  const handleDeleteCustom = useCallback(async (id: string) => {
+    try {
+      await fetch("/api/custom-recipes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setCustomRecipes((prev) => prev.filter((r) => r.id !== id));
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchCustomRecipes();
   }, [fetchCustomRecipes]);
@@ -764,7 +784,12 @@ export default function RecipesPage() {
           <motion.div layout className="grid grid-cols-2 gap-3">
             <AnimatePresence>
               {filtered.map(r => (
-                <RecipeCard key={r.id} recipe={r} onSelect={setSelected} />
+                <RecipeCard
+                  key={r.id}
+                  recipe={r}
+                  onSelect={setSelected}
+                  onDelete={tab === "gescannt" ? handleDeleteCustom : undefined}
+                />
               ))}
             </AnimatePresence>
           </motion.div>

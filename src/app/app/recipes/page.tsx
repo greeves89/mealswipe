@@ -521,8 +521,11 @@ function RecipeDetail({ recipe, onClose, onCook }: { recipe: Recipe; onClose: ()
 }
 
 export default function RecipesPage() {
+  const [tab, setTab] = useState<"alle" | "gescannt">("alle");
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
+  const [customLoading, setCustomLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [cuisine, setCuisine] = useState("Alle");
   const [difficulty, setDifficulty] = useState("Alle");
@@ -547,14 +550,37 @@ export default function RecipesPage() {
     }
   }, []);
 
+  const fetchCustomRecipes = useCallback(async () => {
+    setCustomLoading(true);
+    try {
+      const res = await fetch("/api/custom-recipes");
+      if (res.ok) {
+        const data = await res.json();
+        setCustomRecipes(data.recipes ?? []);
+      }
+    } catch { /* ignore */ }
+    finally { setCustomLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    fetchCustomRecipes();
+  }, [fetchCustomRecipes]);
+
   useEffect(() => {
     const t = setTimeout(() => fetchRecipes(search, cuisine), 300);
     return () => clearTimeout(t);
   }, [search, cuisine, fetchRecipes]);
 
-  const filtered = recipes.filter(r => {
-    if (difficulty !== "Alle" && r.difficulty !== difficulty) return false;
-    if (r.time > timeFilter) return false;
+  const activeList = tab === "gescannt" ? customRecipes : recipes;
+  const filtered = activeList.filter(r => {
+    if (tab === "alle") {
+      if (difficulty !== "Alle" && r.difficulty !== difficulty) return false;
+      if (r.time > timeFilter) return false;
+    }
+    if (search && tab === "gescannt") {
+      const q = search.toLowerCase();
+      if (!r.name.toLowerCase().includes(q) && !r.description.toLowerCase().includes(q)) return false;
+    }
     return true;
   });
 
@@ -573,8 +599,31 @@ export default function RecipesPage() {
             <h1 className="text-2xl font-black flex items-center gap-2">
               <BookOpen className="w-6 h-6 text-teal-400" /> Rezepte
             </h1>
-            <p className="text-[#64748b] text-sm mt-0.5">{recipes.length} Rezepte verfügbar</p>
+            <p className="text-[#64748b] text-sm mt-0.5">
+              {tab === "gescannt" ? `${customRecipes.length} gescannte Rezepte` : `${recipes.length} Rezepte verfügbar`}
+            </p>
           </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 bg-[#0f172a] p-1.5 rounded-2xl">
+          <button
+            onClick={() => setTab("alle")}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${tab === "alle" ? "bg-[#1e293b] text-white" : "text-[#64748b]"}`}
+          >
+            Alle Rezepte
+          </button>
+          <button
+            onClick={() => setTab("gescannt")}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all relative ${tab === "gescannt" ? "bg-[#1e293b] text-white" : "text-[#64748b]"}`}
+          >
+            Gescannt
+            {customRecipes.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-teal-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">
+                {customRecipes.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Search + Filter row */}
@@ -682,7 +731,7 @@ export default function RecipesPage() {
         </AnimatePresence>
 
         {/* Recipe grid */}
-        {loading ? (
+        {(tab === "alle" ? loading : customLoading) ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-2xl bg-[#0f172a] border border-white/5 overflow-hidden animate-pulse">
@@ -696,14 +745,20 @@ export default function RecipesPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
-            <span className="text-4xl">🔍</span>
-            <p className="text-[#64748b] mt-3 font-medium">Keine Rezepte gefunden</p>
-            <button
-              onClick={() => { setSearch(""); setCuisine("Alle"); setDifficulty("Alle"); setTimeFilter(Infinity); }}
-              className="mt-3 text-teal-400 text-sm hover:underline"
-            >
-              Filter zurücksetzen
-            </button>
+            <span className="text-4xl">{tab === "gescannt" ? "📷" : "🔍"}</span>
+            <p className="text-[#64748b] mt-3 font-medium">
+              {tab === "gescannt" ? "Noch keine gescannten Rezepte" : "Keine Rezepte gefunden"}
+            </p>
+            {tab === "gescannt" ? (
+              <p className="text-[#475569] text-sm mt-1">Scanne Rezeptkarten unter &ldquo;Scan&rdquo;</p>
+            ) : (
+              <button
+                onClick={() => { setSearch(""); setCuisine("Alle"); setDifficulty("Alle"); setTimeFilter(Infinity); }}
+                className="mt-3 text-teal-400 text-sm hover:underline"
+              >
+                Filter zurücksetzen
+              </button>
+            )}
           </div>
         ) : (
           <motion.div layout className="grid grid-cols-2 gap-3">

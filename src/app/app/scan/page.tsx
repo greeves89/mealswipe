@@ -159,7 +159,7 @@ export default function ScanPage() {
   const resetAll = () => { setPages([null, null]); setResult(null); setError(null); setAdded(false); };
 
   return (
-    <div className="p-4 space-y-5">
+    <div className="p-4 space-y-5 pb-10">
       {/* Header */}
       <div className="pt-2">
         <h1 className="text-2xl font-black">Rezept Scanner</h1>

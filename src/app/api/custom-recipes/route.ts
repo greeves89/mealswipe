@@ -32,7 +32,7 @@ export async function GET() {
       tags: r.tags ?? [],
       ingredients: typeof r.ingredients === "string" ? JSON.parse(r.ingredients) : (r.ingredients ?? []),
       steps: r.steps ?? [],
-      rating: r.rating ?? 4.0,
+      rating: Number(r.rating ?? 4.0),
       source: r.source ?? "Gescannt",
       isCustom: true,
     }));

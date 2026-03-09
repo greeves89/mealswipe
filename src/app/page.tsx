@@ -224,12 +224,20 @@ export default function LandingPage() {
           <a href="#pricing" className="hover:text-white transition-colors">Preise</a>
           <a href="#compare" className="hover:text-white transition-colors">Vergleich</a>
         </div>
-        <Link
-          href="/auth/register"
-          className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
-        >
-          Registrieren <ArrowRight className="w-4 h-4" />
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/auth/login"
+            className="text-[#94a3b8] hover:text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+          >
+            Login
+          </Link>
+          <Link
+            href="/auth/register"
+            className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+          >
+            Registrieren <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </nav>
 
       {/* Hero */}

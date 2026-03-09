@@ -1,7 +1,9 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, Scan, ChefHat, Clock, Flame, Plus, X, Check, FlipHorizontal } from "lucide-react";
+import { Camera, Upload, Scan, ChefHat, Clock, Flame, Plus, X, Check, FlipHorizontal, Crop } from "lucide-react";
+import Cropper from "react-easy-crop";
+import type { Area } from "react-easy-crop";
 
 type Tab = "camera" | "upload";
 
@@ -34,10 +36,33 @@ const compressImage = (dataUrl: string, maxSize = 1200): Promise<string> =>
     img.src = dataUrl;
   });
 
+const getCroppedImg = (imageSrc: string, pixelCrop: Area): Promise<string> =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = pixelCrop.width;
+      canvas.height = pixelCrop.height;
+      canvas.getContext("2d")?.drawImage(
+        img,
+        pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
+        0, 0, pixelCrop.width, pixelCrop.height
+      );
+      resolve(canvas.toDataURL("image/jpeg", 0.9));
+    };
+    img.src = imageSrc;
+  });
+
 export default function ScanPage() {
   const [activeTab, setActiveTab] = useState<Tab>("upload");
   // pages[0] = Vorderseite, pages[1] = Rückseite (optional)
   const [pages, setPages] = useState<(string | null)[]>([null, null]);
+  // Crop state
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropSlot, setCropSlot] = useState<0 | 1>(0);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScannedRecipe | null>(null);
   const [added, setAdded] = useState(false);
@@ -60,14 +85,32 @@ export default function ScanPage() {
     }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setPages((prev) => { const next = [...prev]; next[slot] = ev.target?.result as string; return next; });
-      setResult(null);
-      setAdded(false);
+      // Open cropper instead of setting page directly
+      setCropSrc(ev.target?.result as string);
+      setCropSlot(slot);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
       setError(null);
     };
     reader.readAsDataURL(file);
-    // Reset input so same file can be re-selected
     e.target.value = "";
+  };
+
+  const confirmCrop = async () => {
+    if (!cropSrc || !croppedAreaPixels) return;
+    const cropped = await getCroppedImg(cropSrc, croppedAreaPixels);
+    setPages((prev) => { const next = [...prev]; next[cropSlot] = cropped; return next; });
+    setCropSrc(null);
+    setResult(null);
+    setAdded(false);
+  };
+
+  const skipCrop = () => {
+    if (!cropSrc) return;
+    setPages((prev) => { const next = [...prev]; next[cropSlot] = cropSrc; return next; });
+    setCropSrc(null);
+    setResult(null);
+    setAdded(false);
   };
 
   const startCamera = useCallback(async (target: 0 | 1) => {
@@ -93,8 +136,12 @@ export default function ScanPage() {
     canvas.height = videoRef.current.videoHeight;
     canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
     const dataUrl = canvas.toDataURL("image/jpeg");
-    setPages((prev) => { const next = [...prev]; next[cameraTarget] = dataUrl; return next; });
     stopCamera();
+    // Open cropper
+    setCropSrc(dataUrl);
+    setCropSlot(cameraTarget);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
     setResult(null);
     setAdded(false);
   };
@@ -157,6 +204,62 @@ export default function ScanPage() {
   };
 
   const resetAll = () => { setPages([null, null]); setResult(null); setError(null); setAdded(false); };
+
+  // Fullscreen crop overlay
+  if (cropSrc) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black flex flex-col">
+        <div className="flex items-center justify-between px-4 pt-safe pt-4 pb-3 bg-black/80">
+          <button onClick={() => setCropSrc(null)} className="text-white/60 hover:text-white p-2">
+            <X className="w-5 h-5" />
+          </button>
+          <p className="text-white font-bold text-sm">
+            {cropSlot === 0 ? "Vorderseite zuschneiden" : "Rückseite zuschneiden"}
+          </p>
+          <button onClick={skipCrop} className="text-[#64748b] text-sm px-2">
+            Überspringen
+          </button>
+        </div>
+
+        <div className="flex-1 relative">
+          <Cropper
+            image={cropSrc}
+            crop={crop}
+            zoom={zoom}
+            aspect={3 / 4}
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
+            style={{
+              containerStyle: { background: "#000" },
+              cropAreaStyle: { border: "2px solid #14b8a6", borderRadius: "12px" },
+            }}
+          />
+        </div>
+
+        {/* Zoom slider */}
+        <div className="px-6 py-3 bg-black/80">
+          <input
+            type="range" min={1} max={3} step={0.01}
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="w-full accent-teal-400"
+          />
+          <p className="text-[#64748b] text-xs text-center mt-1">Pinch oder Slider zum Zoomen</p>
+        </div>
+
+        <div className="px-4 pb-safe pb-6 bg-black/80">
+          <button
+            onClick={confirmCrop}
+            className="w-full flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 text-white py-4 rounded-2xl font-bold transition-all"
+          >
+            <Crop className="w-5 h-5" />
+            Zuschnitt bestätigen
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-5 pb-10">

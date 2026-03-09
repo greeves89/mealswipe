@@ -46,19 +46,18 @@ function AddItemModal({ onAdd, onClose }: { onAdd: (item: Omit<PantryItem, "id" 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/60" />
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-t-3xl p-6 pb-10"
+        className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-3xl p-6"
         onClick={e => e.stopPropagation()}
       >
-        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-5" />
         <h3 className="font-black text-lg mb-5 flex items-center gap-2">
           <Plus className="w-5 h-5 text-teal-400" /> Zutat hinzufügen
         </h3>

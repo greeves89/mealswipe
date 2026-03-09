@@ -175,9 +175,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addToLiked = useCallback(async (recipe: Recipe) => {
     setLikedRecipes((prev) => {
       if (prev.find((r) => r.id === recipe.id)) return prev;
-      const days = getWeekDaysLocal();
-      const nextFreeDay = days.find((d) => !weeklyPlan[d]);
-      if (nextFreeDay) addToWeeklyPlan(nextFreeDay, recipe);
       return [...prev, recipe];
     });
     if (userId) {

@@ -79,19 +79,39 @@ export default function ScanPage() {
     setAdded(false);
   };
 
+  const compressImage = (dataUrl: string, maxSize = 1200): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          if (width > height) { height = Math.round((height * maxSize) / width); width = maxSize; }
+          else { width = Math.round((width * maxSize) / height); height = maxSize; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = dataUrl;
+    });
+  };
+
   const handleScan = async () => {
     if (!preview) return;
     setScanning(true);
     setError(null);
 
     try {
-      // Extract base64
-      const base64 = preview.split(",")[1] || preview;
+      // Compress image before sending (max 1200px, 85% quality)
+      const compressed = await compressImage(preview);
+      const base64 = compressed.split(",")[1] || compressed;
 
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       });
 
       if (!response.ok) throw new Error("Scan fehlgeschlagen");

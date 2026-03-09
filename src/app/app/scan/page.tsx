@@ -19,6 +19,7 @@ interface ScannedRecipe {
 export default function ScanPage() {
   const [activeTab, setActiveTab] = useState<Tab>("upload");
   const [preview, setPreview] = useState<string | null>(null);
+  const [mimeType, setMimeType] = useState<string>("image/jpeg");
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScannedRecipe | null>(null);
   const [added, setAdded] = useState(false);
@@ -30,11 +31,18 @@ export default function ScanPage() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const supportedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"];
+    if (!supportedTypes.includes(file.type) && !file.type.startsWith("image/")) {
+      setError("Nur Bilder erlaubt (JPG, PNG, WEBP). PDFs werden nicht unterstützt.");
+      return;
+    }
+    setMimeType(file.type || "image/jpeg");
     const reader = new FileReader();
     reader.onload = (ev) => {
       setPreview(ev.target?.result as string);
       setResult(null);
       setAdded(false);
+      setError(null);
     };
     reader.readAsDataURL(file);
   };
@@ -83,7 +91,7 @@ export default function ScanPage() {
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64 }),
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
 
       if (!response.ok) throw new Error("Scan fehlgeschlagen");

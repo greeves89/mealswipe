@@ -29,6 +29,7 @@ const DIFF_COLORS: Record<string, string> = {
 };
 
 function TopCard({ recipe, onSwipe }: { recipe: Recipe; onSwipe: (dir: "left" | "right") => void }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 300], [-18, 18]);
   const likeOpacity = useTransform(x, [40, 140], [0, 1]);
@@ -71,9 +72,11 @@ function TopCard({ recipe, onSwipe }: { recipe: Recipe; onSwipe: (dir: "left" | 
       <img
         src={recipe.image}
         alt={recipe.name}
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-400"
+        style={{ opacity: imgLoaded ? 1 : 0 }}
         draggable={false}
-        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        onLoad={() => setImgLoaded(true)}
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setImgLoaded(true); }}
       />
 
       {/* Dark gradient overlay */}
@@ -145,6 +148,7 @@ function TopCard({ recipe, onSwipe }: { recipe: Recipe; onSwipe: (dir: "left" | 
 }
 
 function BackCard({ recipe, stackIndex }: { recipe: Recipe; stackIndex: number }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
   const scale = 1 - stackIndex * 0.05;
   const y = stackIndex * 14;
   return (
@@ -157,8 +161,10 @@ function BackCard({ recipe, stackIndex }: { recipe: Recipe; stackIndex: number }
       <img
         src={recipe.image}
         alt=""
-        className="absolute inset-0 w-full h-full object-cover opacity-60"
+        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+        style={{ opacity: imgLoaded ? 0.6 : 0 }}
         draggable={false}
+        onLoad={() => setImgLoaded(true)}
         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />

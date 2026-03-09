@@ -3,10 +3,13 @@ import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
-  const { imageBase64 } = await req.json();
+  const { imageBase64, mimeType } = await req.json();
   if (!imageBase64) {
     return NextResponse.json({ error: "Kein Bild übermittelt" }, { status: 400 });
   }
+  const supportedMimes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  const mime = mimeType && supportedMimes.includes(mimeType) ? mimeType : "image/jpeg";
+
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
             content: [
               {
                 type: "image_url",
-                image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+                image_url: { url: `data:${mime};base64,${imageBase64}` },
               },
               {
                 type: "text",

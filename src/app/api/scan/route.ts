@@ -3,17 +3,22 @@ import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
-  const { imageBase64, mimeType } = await req.json();
-  if (!imageBase64) {
+  const body = await req.json();
+
+  // Support both old single-image format and new multi-image format
+  let images: string[] = [];
+  if (body.images && Array.isArray(body.images)) {
+    images = body.images;
+  } else if (body.imageBase64) {
+    images = [body.imageBase64];
+  }
+
+  if (images.length === 0) {
     return NextResponse.json({ error: "Kein Bild übermittelt" }, { status: 400 });
   }
-  const supportedMimes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-  const mime = mimeType && supportedMimes.includes(mimeType) ? mimeType : "image/jpeg";
-
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    // Demo mode — return mock data so the UI is testable without API key
     return NextResponse.json({
       name: "Pasta Carbonara (Demo)",
       description: "Klassische römische Pasta mit Ei, Pecorino und Guanciale",
@@ -33,6 +38,44 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Build content array: all images first, then the prompt
+  const imageContent = images.map((img) => ({
+    type: "image_url" as const,
+    image_url: { url: `data:image/jpeg;base64,${img}` },
+  }));
+
+  const promptText = images.length > 1
+    ? `Du siehst ${images.length} Seiten einer Rezeptkarte (Vorder- und Rückseite). Kombiniere alle Informationen aus beiden Seiten zu einem vollständigen Rezept.
+Antworte NUR mit validem JSON ohne Markdown-Formatierung:
+{
+  "name": "Rezeptname",
+  "description": "Kurzbeschreibung auf Deutsch (1-2 Sätze)",
+  "cuisine": "Küche (z.B. Italienisch, Deutsch, Asiatisch)",
+  "ingredients": [{"name": "Zutat", "amount": "Menge"}],
+  "steps": ["Schritt 1", "Schritt 2"],
+  "time": Minuten als Zahl,
+  "calories": Kalorien pro Portion als Zahl oder 0 wenn unbekannt,
+  "servings": Portionen als Zahl,
+  "difficulty": "Einfach" oder "Mittel" oder "Anspruchsvoll",
+  "tags": ["Tag1", "Tag2"]
+}
+Falls kein Rezept erkennbar ist, antworte mit: {"error": "Kein Rezept erkannt"}`
+    : `Analysiere dieses Bild einer Rezeptkarte und extrahiere alle Informationen.
+Antworte NUR mit validem JSON ohne Markdown-Formatierung:
+{
+  "name": "Rezeptname",
+  "description": "Kurzbeschreibung auf Deutsch (1-2 Sätze)",
+  "cuisine": "Küche (z.B. Italienisch, Deutsch, Asiatisch)",
+  "ingredients": [{"name": "Zutat", "amount": "Menge"}],
+  "steps": ["Schritt 1", "Schritt 2"],
+  "time": Minuten als Zahl,
+  "calories": Kalorien pro Portion als Zahl oder 0 wenn unbekannt,
+  "servings": Portionen als Zahl,
+  "difficulty": "Einfach" oder "Mittel" oder "Anspruchsvoll",
+  "tags": ["Tag1", "Tag2"]
+}
+Falls kein Rezept erkennbar ist, antworte mit: {"error": "Kein Rezept erkannt"}`;
+
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -47,28 +90,8 @@ export async function POST(req: NextRequest) {
           {
             role: "user",
             content: [
-              {
-                type: "image_url",
-                image_url: { url: `data:${mime};base64,${imageBase64}` },
-              },
-              {
-                type: "text",
-                text: `Analysiere dieses Bild einer Rezeptkarte und extrahiere alle Informationen.
-Antworte NUR mit validem JSON ohne Markdown-Formatierung:
-{
-  "name": "Rezeptname",
-  "description": "Kurzbeschreibung auf Deutsch (1-2 Sätze)",
-  "cuisine": "Küche (z.B. Italienisch, Deutsch, Asiatisch)",
-  "ingredients": [{"name": "Zutat", "amount": "Menge"}],
-  "steps": ["Schritt 1", "Schritt 2"],
-  "time": Minuten als Zahl,
-  "calories": Kalorien pro Portion als Zahl oder 0 wenn unbekannt,
-  "servings": Portionen als Zahl,
-  "difficulty": "Einfach" oder "Mittel" oder "Anspruchsvoll",
-  "tags": ["Tag1", "Tag2"]
-}
-Falls kein Rezept erkennbar ist, antworte mit: {"error": "Kein Rezept erkannt"}`,
-              },
+              ...imageContent,
+              { type: "text", text: promptText },
             ],
           },
         ],

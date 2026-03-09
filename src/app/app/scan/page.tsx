@@ -137,7 +137,10 @@ export default function ScanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(result),
       });
-      if (!res.ok) throw new Error("Speichern fehlgeschlagen");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Speichern fehlgeschlagen (${res.status})`);
+      }
       setAdded(true);
       setTimeout(() => { setResult(null); setPages([null, null]); setAdded(false); }, 2000);
     } catch (err) {

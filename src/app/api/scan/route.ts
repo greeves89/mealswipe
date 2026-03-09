@@ -149,7 +149,7 @@ export async function PUT(req: NextRequest) {
         recipe.calories ?? 0,
         recipe.difficulty ?? "Mittel",
         recipe.tags ?? [],
-        recipe.ingredients ?? [],
+        JSON.stringify(recipe.ingredients ?? []),
         recipe.steps ?? [],
       ]
     );

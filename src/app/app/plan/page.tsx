@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useApp, getWeekDays } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -17,6 +17,9 @@ import {
   BookmarkPlus,
   BookOpen,
   Trash2,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const DAY_LABELS: Record<string, string> = {};
@@ -174,6 +177,197 @@ function RecipePickerModal({
   );
 }
 
+// ── Month View ───────────────────────────────────────────────────────────────
+
+const DE_MONTH_NAMES = [
+  "Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "Dezember",
+];
+const DE_DAY_ABBR = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+function MonthView({
+  allRecipes,
+  onAddDay,
+}: {
+  allRecipes: Recipe[];
+  onAddDay: (day: string) => void;
+}) {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear] = useState(now.getFullYear());
+  const [monthPlans, setMonthPlans] = useState<Record<string, Recipe>>({});
+  const [loadingMonth, setLoadingMonth] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  const loadMonth = useCallback(async (y: number, m: number) => {
+    setLoadingMonth(true);
+    const monthStart = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+    // fetch all plans from start of month
+    const nextMonthStart = m === 11
+      ? `${y + 1}-01-01`
+      : `${y}-${String(m + 2).padStart(2, "0")}-01`;
+    try {
+      const res = await fetch(`/api/meal-plans?week_start=${monthStart}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const plans: Record<string, Recipe> = {};
+      for (const p of data.plans ?? []) {
+        if (p.day < nextMonthStart) {
+          plans[p.day] = p.recipe_data as Recipe;
+        }
+      }
+      setMonthPlans(plans);
+    } catch { /* silent */ } finally {
+      setLoadingMonth(false);
+    }
+  }, []);
+
+  useEffect(() => { loadMonth(year, month); }, [year, month, loadMonth]);
+
+  const prevMonth = () => {
+    if (month === 0) { setMonth(11); setYear(y => y - 1); }
+    else setMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (month === 11) { setMonth(0); setYear(y => y + 1); }
+    else setMonth(m => m + 1);
+  };
+
+  // Build calendar grid
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  // Monday-first: 0=Mon … 6=Sun
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const totalDays = lastDay.getDate();
+
+  const cells: (string | null)[] = [
+    ...Array(startOffset).fill(null),
+    ...Array.from({ length: totalDays }, (_, i) => {
+      const d = new Date(year, month, i + 1);
+      return d.toISOString().split("T")[0];
+    }),
+  ];
+  // Pad to full rows
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const todayStr = now.toISOString().split("T")[0];
+
+  return (
+    <div className="space-y-3">
+      {/* Month navigation */}
+      <div className="flex items-center justify-between">
+        <button onClick={prevMonth} className="w-9 h-9 rounded-xl bg-[#0f172a] border border-white/5 flex items-center justify-center hover:border-teal-500/30 transition-colors">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="font-black text-base">
+          {DE_MONTH_NAMES[month]} {year}
+        </span>
+        <button onClick={nextMonth} className="w-9 h-9 rounded-xl bg-[#0f172a] border border-white/5 flex items-center justify-center hover:border-teal-500/30 transition-colors">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Day abbreviation header */}
+      <div className="grid grid-cols-7 gap-1">
+        {DE_DAY_ABBR.map(d => (
+          <div key={d} className="text-center text-[10px] font-semibold text-[#475569] py-1">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      {loadingMonth ? (
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <div key={i} className="h-14 rounded-xl bg-[#0f172a] animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((day, i) => {
+            if (!day) return <div key={i} />;
+            const recipe = monthPlans[day];
+            const isToday = day === todayStr;
+            const dayNum = parseInt(day.split("-")[2]);
+
+            return (
+              <button
+                key={day}
+                onClick={() => {
+                  setSelectedDay(day);
+                  if (!recipe) onAddDay(day);
+                }}
+                className={`relative flex flex-col items-center justify-start pt-1.5 pb-1 rounded-xl min-h-[3.5rem] transition-all border ${
+                  isToday
+                    ? "border-teal-500/50 bg-teal-500/10"
+                    : recipe
+                    ? "border-teal-500/20 bg-[#0a1e1a]"
+                    : "border-white/5 bg-[#0f172a] hover:border-white/10"
+                }`}
+              >
+                <span className={`text-xs font-bold leading-none ${isToday ? "text-teal-400" : "text-[#94a3b8]"}`}>
+                  {dayNum}
+                </span>
+                {recipe && (
+                  <div className="mt-1 w-full px-0.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-teal-400 mx-auto" />
+                    <p className="text-[9px] text-[#64748b] leading-tight text-center mt-0.5 line-clamp-2 break-words">
+                      {recipe.name}
+                    </p>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-teal-500/50 border border-teal-500" />
+          <span className="text-xs text-[#475569]">Heute</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-teal-400" />
+          <span className="text-xs text-[#475569]">Mahlzeit geplant</span>
+        </div>
+        <span className="text-xs text-[#334155] ml-auto">{Object.keys(monthPlans).length} Tage geplant</span>
+      </div>
+
+      {/* Planned meals list */}
+      {Object.keys(monthPlans).length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wide">Geplante Mahlzeiten</p>
+          {Object.entries(monthPlans)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([day, recipe]) => {
+              const d = new Date(day);
+              return (
+                <div key={day} className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-[#0f172a] border border-white/5">
+                  <div className="shrink-0 w-10 text-center">
+                    <span className="text-xs font-bold text-teal-400">{d.getDate()}</span>
+                    <p className="text-[10px] text-[#475569] leading-none mt-0.5">
+                      {DE_MONTH_NAMES[d.getMonth()].slice(0, 3)}
+                    </p>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{recipe.name}</p>
+                    <p className="text-xs text-[#64748b]">{recipe.time} Min · {recipe.calories} kcal</p>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {/* Hidden: day detail (selectedDay) - just triggers parent's addingDay */}
+      {selectedDay !== null && (() => { void selectedDay; return null; })()}
+    </div>
+  );
+}
+
 interface PlanTemplate {
   id: string;
   name: string;
@@ -183,6 +377,7 @@ interface PlanTemplate {
 
 export default function PlanPage() {
   const { weeklyPlan, likedRecipes, removeFromPlan, addToWeeklyPlan, generateShoppingList } = useApp();
+  const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [addingDay, setAddingDay] = useState<string | null>(null);
   const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
@@ -259,41 +454,69 @@ export default function PlanPage() {
       {/* Header */}
       <div className="pt-2 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-black">Wochenplan</h1>
-          <p className="text-[#64748b] text-sm mt-1">
-            {plannedCount} von 7 Tagen geplant
-          </p>
+          <h1 className="text-2xl font-black">Mahlzeitenplan</h1>
+          {viewMode === "week" && (
+            <p className="text-[#64748b] text-sm mt-1">{plannedCount} von 7 Tagen geplant</p>
+          )}
         </div>
-        <div className="flex gap-2 mt-1">
-          {plannedCount > 0 && (
+        {viewMode === "week" && (
+          <div className="flex gap-2 mt-1">
+            {plannedCount > 0 && (
+              <button
+                onClick={() => setShowSaveTemplate(true)}
+                className="flex items-center gap-1 bg-[#0f172a] border border-white/10 hover:border-teal-500/40 text-[#94a3b8] hover:text-teal-400 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              >
+                <BookmarkPlus className="w-3.5 h-3.5" />
+                Speichern
+              </button>
+            )}
             <button
-              onClick={() => setShowSaveTemplate(true)}
+              onClick={() => { loadTemplates(); setShowLoadTemplate(true); }}
               className="flex items-center gap-1 bg-[#0f172a] border border-white/10 hover:border-teal-500/40 text-[#94a3b8] hover:text-teal-400 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
             >
-              <BookmarkPlus className="w-3.5 h-3.5" />
-              Speichern
+              <BookOpen className="w-3.5 h-3.5" />
+              Vorlagen
             </button>
-          )}
-          <button
-            onClick={() => { loadTemplates(); setShowLoadTemplate(true); }}
-            className="flex items-center gap-1 bg-[#0f172a] border border-white/10 hover:border-teal-500/40 text-[#94a3b8] hover:text-teal-400 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            Vorlagen
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Progress */}
-      <div className="w-full bg-[#1e293b] rounded-full h-2">
+      {/* View mode tabs */}
+      <div className="flex gap-2 bg-[#0a1120] p-1 rounded-2xl border border-white/5">
+        <button
+          onClick={() => setViewMode("week")}
+          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+            viewMode === "week" ? "bg-teal-500 text-white" : "text-[#64748b] hover:text-white"
+          }`}
+        >
+          <ChefHat className="w-3.5 h-3.5" /> Woche
+        </button>
+        <button
+          onClick={() => setViewMode("month")}
+          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+            viewMode === "month" ? "bg-teal-500 text-white" : "text-[#64748b] hover:text-white"
+          }`}
+        >
+          <CalendarDays className="w-3.5 h-3.5" /> Monat
+        </button>
+      </div>
+
+      {/* Month view */}
+      {viewMode === "month" && (
+        <MonthView allRecipes={allRecipes} onAddDay={(day) => setAddingDay(day)} />
+      )}
+
+      {/* Week view: Progress */}
+      {viewMode === "week" && <div className="w-full bg-[#1e293b] rounded-full h-2">
         <motion.div
           className="bg-gradient-to-r from-teal-500 to-teal-400 h-2 rounded-full"
           animate={{ width: `${(plannedCount / 7) * 100}%` }}
           transition={{ duration: 0.5 }}
         />
-      </div>
+      </div>}
 
       {/* Days */}
+      {viewMode === "week" && <>
       <div className="space-y-3">
         {days.map((day, i) => {
           const planned = weeklyPlan[day];
@@ -389,8 +612,8 @@ export default function PlanPage() {
         })}
       </div>
 
-      {/* Generate shopping list */}
-      {plannedCount > 0 && (
+      {/* Generate shopping list (week only) */}
+      {viewMode === "week" && plannedCount > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -411,8 +634,8 @@ export default function PlanPage() {
         </motion.div>
       )}
 
-      {/* Empty state */}
-      {plannedCount === 0 && (
+      {/* Empty state (week only) */}
+      {viewMode === "week" && plannedCount === 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -432,6 +655,8 @@ export default function PlanPage() {
           </Link>
         </motion.div>
       )}
+
+      </>}
 
       {/* Recipe Modal */}
       <RecipeModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />

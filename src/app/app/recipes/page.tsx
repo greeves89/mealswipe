@@ -1,11 +1,13 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Clock, Flame, ChefHat, X, Star, BookOpen, Filter,
   ChevronLeft, ChevronRight, CheckCircle2, Circle, PlayCircle, ShoppingCart,
-  AlertTriangle, PackageCheck, Trash2,
+  AlertTriangle, PackageCheck, Trash2, Pencil, Crop,
 } from "lucide-react";
+import Cropper from "react-easy-crop";
+import type { Area } from "react-easy-crop";
 
 interface PantryItem {
   id: string;
@@ -45,6 +47,7 @@ interface Recipe {
   ingredients: { name: string; amount: string }[];
   steps: string[];
   rating: number;
+  isCustom?: boolean;
 }
 
 const CUISINES = ["Alle", "Italienisch", "Asiatisch", "Mexikanisch", "Deutsch", "International"];
@@ -88,7 +91,11 @@ function RecipeCard({ recipe, onSelect, onDelete }: { recipe: Recipe; onSelect: 
         <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${DIFFICULTY_COLOR[recipe.difficulty]}`}>
           {recipe.difficulty}
         </span>
-        {recipe.rating >= 4.7 && (
+        {recipe.isCustom ? (
+          <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400">
+            ✦ Eigenes
+          </span>
+        ) : recipe.rating >= 4.7 && (
           <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-400">
             ⭐ Top
           </span>
@@ -395,12 +402,115 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
   );
 }
 
-function RecipeDetail({ recipe, onClose, onCook }: { recipe: Recipe; onClose: () => void; onCook: () => void }) {
-  const emoji = recipe.image
+const compressImage = (dataUrl: string, maxPx = 600): Promise<string> =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.src = dataUrl;
+  });
+
+const getCroppedImg = (imageSrc: string, pixelCrop: Area): Promise<string> =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = pixelCrop.width;
+      canvas.height = pixelCrop.height;
+      canvas.getContext("2d")?.drawImage(img, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.src = imageSrc;
+  });
+
+function RecipeDetail({ recipe, onClose, onCook, onImageUpdate }: {
+  recipe: Recipe; onClose: () => void; onCook: () => void;
+  onImageUpdate?: (id: string, dataUrl: string) => void;
+}) {
+  const [currentImage, setCurrentImage] = useState(recipe.image);
+  const [showCrop, setShowCrop] = useState(false);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const emoji = currentImage
     ? null
     : ["🍝", "🍜", "🌮", "🥗", "🍣", "🥘", "🍕", "🍛", "🥩", "🍲"][
         Math.abs(recipe.name.charCodeAt(0) + recipe.name.charCodeAt(2)) % 10
       ];
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const compressed = await compressImage(ev.target?.result as string, 800);
+      setCurrentImage(compressed);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setShowCrop(true);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const confirmCrop = async () => {
+    if (!currentImage || !croppedAreaPixels) return;
+    const raw = await getCroppedImg(currentImage, croppedAreaPixels);
+    const cropped = await compressImage(raw, 400);
+    setCurrentImage(cropped);
+    setShowCrop(false);
+    // Save to server
+    await fetch("/api/custom-recipes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: recipe.id, imageDataUrl: cropped }),
+    });
+    onImageUpdate?.(recipe.id, cropped);
+  };
+
+  // Fullscreen crop overlay
+  if (showCrop && currentImage) {
+    return (
+      <div className="fixed inset-0 z-[60] bg-black flex flex-col">
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 bg-black/80">
+          <button onClick={() => setShowCrop(false)} className="text-white/60 hover:text-white p-2">
+            <X className="w-5 h-5" />
+          </button>
+          <p className="text-white font-bold text-sm">Bild zuschneiden</p>
+          <div className="w-10" />
+        </div>
+        <div className="flex-1 relative">
+          <Cropper
+            image={currentImage}
+            crop={crop}
+            zoom={zoom}
+            aspect={3 / 4}
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
+            style={{ containerStyle: { background: "#000" }, cropAreaStyle: { border: "2px solid #14b8a6", borderRadius: "12px" } }}
+          />
+        </div>
+        <div className="px-6 py-3 bg-black/80">
+          <input type="range" min={1} max={3} step={0.01} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-full accent-teal-400" />
+          <p className="text-[#64748b] text-xs text-center mt-1">Pinch oder Slider zum Zoomen</p>
+        </div>
+        <div className="px-4 pb-8 bg-black/80">
+          <button onClick={confirmCrop} className="w-full flex items-center justify-center gap-2 bg-teal-500 text-white py-4 rounded-2xl font-bold">
+            <Crop className="w-5 h-5" /> Zuschnitt bestätigen
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const addToShoppingList = async () => {
     try {
@@ -424,9 +534,9 @@ function RecipeDetail({ recipe, onClose, onCook }: { recipe: Recipe; onClose: ()
     >
       {/* Hero image */}
       <div className="relative h-56 bg-[#1e293b] flex items-center justify-center overflow-hidden">
-        {recipe.image ? (
+        {currentImage ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={recipe.image} alt={recipe.name} className="w-full h-full object-cover" />
+          <img src={currentImage} alt={recipe.name} className="w-full h-full object-cover" />
         ) : (
           <span className="text-7xl">{emoji}</span>
         )}
@@ -437,6 +547,17 @@ function RecipeDetail({ recipe, onClose, onCook }: { recipe: Recipe; onClose: ()
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
+        {recipe.isCustom && (
+          <>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white hover:bg-teal-500/70 transition-all"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+          </>
+        )}
       </div>
 
       <div className="p-5 space-y-5 pb-8">
@@ -530,7 +651,7 @@ function RecipeDetail({ recipe, onClose, onCook }: { recipe: Recipe; onClose: ()
 }
 
 export default function RecipesPage() {
-  const [tab, setTab] = useState<"alle" | "gescannt">("alle");
+  const [tab, setTab] = useState<"alle" | "meine">("alle");
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
@@ -591,13 +712,11 @@ export default function RecipesPage() {
     return () => clearTimeout(t);
   }, [search, cuisine, fetchRecipes]);
 
-  const activeList = tab === "gescannt" ? customRecipes : recipes;
+  const activeList = tab === "meine" ? customRecipes : [...customRecipes, ...recipes];
   const filtered = activeList.filter(r => {
-    if (tab === "alle") {
-      if (difficulty !== "Alle" && r.difficulty !== difficulty) return false;
-      if (r.time > timeFilter) return false;
-    }
-    if (search && tab === "gescannt") {
+    if (difficulty !== "Alle" && r.difficulty !== difficulty) return false;
+    if (r.time > timeFilter) return false;
+    if (search) {
       const q = search.toLowerCase();
       if (!r.name.toLowerCase().includes(q) && !r.description.toLowerCase().includes(q)) return false;
     }
@@ -620,7 +739,7 @@ export default function RecipesPage() {
               <BookOpen className="w-6 h-6 text-teal-400" /> Rezepte
             </h1>
             <p className="text-[#64748b] text-sm mt-0.5">
-              {tab === "gescannt" ? `${customRecipes.length} gescannte Rezepte` : `${recipes.length} Rezepte verfügbar`}
+              {tab === "meine" ? `${customRecipes.length} eigene Rezepte` : `${recipes.length} Rezepte verfügbar`}
             </p>
           </div>
         </div>
@@ -634,10 +753,10 @@ export default function RecipesPage() {
             Alle Rezepte
           </button>
           <button
-            onClick={() => setTab("gescannt")}
-            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all relative ${tab === "gescannt" ? "bg-[#1e293b] text-white" : "text-[#64748b]"}`}
+            onClick={() => setTab("meine")}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all relative ${tab === "meine" ? "bg-[#1e293b] text-white" : "text-[#64748b]"}`}
           >
-            Gescannt
+            Meine Rezepte
             {customRecipes.length > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-teal-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">
                 {customRecipes.length}
@@ -765,11 +884,11 @@ export default function RecipesPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
-            <span className="text-4xl">{tab === "gescannt" ? "📷" : "🔍"}</span>
+            <span className="text-4xl">{tab === "meine" ? "📷" : "🔍"}</span>
             <p className="text-[#64748b] mt-3 font-medium">
-              {tab === "gescannt" ? "Noch keine gescannten Rezepte" : "Keine Rezepte gefunden"}
+              {tab === "meine" ? "Noch keine gescannten Rezepte" : "Keine Rezepte gefunden"}
             </p>
-            {tab === "gescannt" ? (
+            {tab === "meine" ? (
               <p className="text-[#475569] text-sm mt-1">Scanne Rezeptkarten unter &ldquo;Scan&rdquo;</p>
             ) : (
               <button
@@ -788,7 +907,7 @@ export default function RecipesPage() {
                   key={r.id}
                   recipe={r}
                   onSelect={setSelected}
-                  onDelete={tab === "gescannt" ? handleDeleteCustom : undefined}
+                  onDelete={r.isCustom ? handleDeleteCustom : undefined}
                 />
               ))}
             </AnimatePresence>
@@ -803,6 +922,10 @@ export default function RecipesPage() {
             recipe={selected}
             onClose={() => setSelected(null)}
             onCook={() => setCooking(selected)}
+            onImageUpdate={(id, dataUrl) => {
+              setCustomRecipes(prev => prev.map(r => r.id === id ? { ...r, image: dataUrl } : r));
+              setSelected(prev => prev && prev.id === id ? { ...prev, image: dataUrl } : prev);
+            }}
           />
         )}
       </AnimatePresence>

@@ -73,9 +73,12 @@ const CATEGORY_COLORS: Record<Category, string> = {
 };
 
 const SUPERMARKETS = [
-  { name: "REWE", emoji: "🛒", color: "bg-red-500/10 border-red-500/20 text-red-400" },
-  { name: "Edeka", emoji: "🏪", color: "bg-yellow-500/10 border-yellow-500/20 text-yellow-400" },
-  { name: "Kaufland", emoji: "🏬", color: "bg-blue-500/10 border-blue-500/20 text-blue-400" },
+  { name: "REWE", emoji: "🛒", color: "bg-red-500/10 border-red-500/20 text-red-400", url: "https://shop.rewe.de/" },
+  { name: "Edeka", emoji: "🏪", color: "bg-yellow-500/10 border-yellow-500/20 text-yellow-400", url: "https://www.edeka24.de/" },
+  { name: "Picnic", emoji: "🚴", color: "bg-green-500/10 border-green-500/20 text-green-400", url: "https://picnic.app/de/" },
+  { name: "Flaschenpost", emoji: "⚡", color: "bg-blue-500/10 border-blue-500/20 text-blue-400", url: "https://www.flaschenpost.de/" },
+  { name: "Kaufland", emoji: "🏬", color: "bg-purple-500/10 border-purple-500/20 text-purple-400", url: "https://www.kaufland.de/service/online-shop.html" },
+  { name: "Penny", emoji: "🪙", color: "bg-orange-500/10 border-orange-500/20 text-orange-400", url: "https://www.penny.de/" },
 ];
 
 export default function ShoppingPage() {
@@ -331,21 +334,32 @@ export default function ShoppingPage() {
           animate={{ opacity: 1, y: 0 }}
           className="pt-2"
         >
-          <h3 className="font-bold text-base mb-3">Direkt bestellen</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-base">Jetzt bestellen</h3>
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 bg-[#1e293b] text-[#94a3b8] hover:text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              Liste kopieren
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
             {SUPERMARKETS.map((sm) => (
-              <button
+              <a
                 key={sm.name}
-                className={`p-4 rounded-2xl border ${sm.color} text-center transition-all hover:scale-105 active:scale-95`}
-                onClick={() => alert(`${sm.name} Integration kommt bald!`)}
+                href={sm.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`p-3 rounded-2xl border ${sm.color} text-center transition-all hover:scale-105 active:scale-95`}
               >
-                <div className="text-2xl mb-1">{sm.emoji}</div>
+                <div className="text-xl mb-1">{sm.emoji}</div>
                 <div className="text-xs font-bold">{sm.name}</div>
-              </button>
+              </a>
             ))}
           </div>
           <p className="text-[#475569] text-xs text-center mt-2">
-            Integrationen in Kürze verfügbar
+            Liste kopieren → im Shop einfügen
           </p>
         </motion.div>
       )}

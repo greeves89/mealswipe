@@ -118,6 +118,36 @@ export default function RecipeModal({ recipe, onClose }: RecipeModalProps) {
                 </div>
               </div>
 
+              {/* Macros */}
+              {(recipe.protein || recipe.carbs || recipe.fat) ? (
+                <div className="bg-[#1e293b] rounded-2xl p-4 mb-6">
+                  <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-3">Nährwerte pro Portion</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center">
+                      <p className="text-blue-400 font-black text-lg">{recipe.protein}g</p>
+                      <p className="text-[#64748b] text-xs">Protein</p>
+                      <div className="w-full bg-[#0f172a] rounded-full h-1.5 mt-1.5">
+                        <div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${Math.min((recipe.protein! / ((recipe.protein! + recipe.carbs! + recipe.fat!) || 1)) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-orange-400 font-black text-lg">{recipe.carbs}g</p>
+                      <p className="text-[#64748b] text-xs">Kohlenhydrate</p>
+                      <div className="w-full bg-[#0f172a] rounded-full h-1.5 mt-1.5">
+                        <div className="bg-orange-400 h-1.5 rounded-full" style={{ width: `${Math.min((recipe.carbs! / ((recipe.protein! + recipe.carbs! + recipe.fat!) || 1)) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-yellow-400 font-black text-lg">{recipe.fat}g</p>
+                      <p className="text-[#64748b] text-xs">Fett</p>
+                      <div className="w-full bg-[#0f172a] rounded-full h-1.5 mt-1.5">
+                        <div className="bg-yellow-400 h-1.5 rounded-full" style={{ width: `${Math.min((recipe.fat! / ((recipe.protein! + recipe.carbs! + recipe.fat!) || 1)) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mb-6">
                 {recipe.tags.map((tag) => (

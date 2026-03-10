@@ -28,6 +28,7 @@ const PLAN_BORDER: Record<string, string> = {
 function BillingContent() {
   const [currentPlan, setCurrentPlan] = useState<PlanKey>("free");
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const searchParams = useSearchParams();
   const success = searchParams.get("success") === "true";
@@ -48,6 +49,16 @@ function BillingContent() {
     }
     fetchProfile();
   }, []);
+
+  const handlePortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch { /* ignore */ }
+    finally { setPortalLoading(false); }
+  };
 
   const handleUpgrade = async (plan: PlanKey) => {
     if (plan === "free") return;
@@ -190,15 +201,17 @@ function BillingContent() {
                 )}
 
                 {isCurrentPlan && isPaid && (
-                  <p className="text-center text-[#475569] text-xs">
-                    Kontakt:{" "}
-                    <a
-                      href={`mailto:support@forkly.site?subject=Subscription&body=Konto: ${userEmail}`}
-                      className="text-teal-400 hover:underline"
-                    >
-                      support@forkly.site
-                    </a>
-                  </p>
+                  <button
+                    onClick={handlePortal}
+                    disabled={portalLoading}
+                    className="w-full flex items-center justify-center gap-2 bg-[#1e293b] hover:bg-[#263548] border border-white/10 text-[#94a3b8] py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-60"
+                  >
+                    {portalLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Abonnement verwalten / kündigen"
+                    )}
+                  </button>
                 )}
 
                 {key === "free" && isCurrentPlan && (

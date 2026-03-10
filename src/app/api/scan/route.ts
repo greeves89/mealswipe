@@ -55,6 +55,9 @@ Antworte NUR mit validem JSON ohne Markdown-Formatierung:
   "steps": ["Schritt 1", "Schritt 2"],
   "time": Minuten als Zahl,
   "calories": Kalorien pro Portion als Zahl oder 0 wenn unbekannt,
+  "protein": Protein in Gramm als Zahl oder 0,
+  "carbs": Kohlenhydrate in Gramm als Zahl oder 0,
+  "fat": Fett in Gramm als Zahl oder 0,
   "servings": Portionen als Zahl,
   "difficulty": "Einfach" oder "Mittel" oder "Anspruchsvoll",
   "tags": ["Tag1", "Tag2"]
@@ -70,6 +73,9 @@ Antworte NUR mit validem JSON ohne Markdown-Formatierung:
   "steps": ["Schritt 1", "Schritt 2"],
   "time": Minuten als Zahl,
   "calories": Kalorien pro Portion als Zahl oder 0 wenn unbekannt,
+  "protein": Protein in Gramm als Zahl oder 0,
+  "carbs": Kohlenhydrate in Gramm als Zahl oder 0,
+  "fat": Fett in Gramm als Zahl oder 0,
   "servings": Portionen als Zahl,
   "difficulty": "Einfach" oder "Mittel" oder "Anspruchsvoll",
   "tags": ["Tag1", "Tag2"]
@@ -136,8 +142,8 @@ export async function PUT(req: NextRequest) {
 
     const result = await query<{ id: string }>(
       `INSERT INTO custom_recipes
-         (user_id, name, description, cuisine, time, servings, calories, difficulty, tags, ingredients, steps, source)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Gescannt')
+         (user_id, name, description, cuisine, time, servings, calories, protein, carbs, fat, difficulty, tags, ingredients, steps, source, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'Gescannt',$15)
        RETURNING id`,
       [
         session.id,
@@ -147,10 +153,14 @@ export async function PUT(req: NextRequest) {
         recipe.time ?? 30,
         recipe.servings ?? 4,
         recipe.calories ?? 0,
+        recipe.protein ?? 0,
+        recipe.carbs ?? 0,
+        recipe.fat ?? 0,
         recipe.difficulty ?? "Mittel",
         recipe.tags ?? [],
         JSON.stringify(recipe.ingredients ?? []),
         recipe.steps ?? [],
+        recipe.imageDataUrl ?? null,
       ]
     );
 

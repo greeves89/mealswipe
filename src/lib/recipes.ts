@@ -7,6 +7,9 @@ export interface Recipe {
   time: number;
   servings: number;
   calories: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
   difficulty: "Einfach" | "Mittel" | "Anspruchsvoll";
   tags: string[];
   ingredients: { name: string; amount: string }[];
@@ -25,6 +28,9 @@ export const RECIPES: Recipe[] = [
     time: 25,
     servings: 4,
     calories: 650,
+    protein: 28,
+    carbs: 72,
+    fat: 24,
     difficulty: "Mittel",
     tags: ["Pasta", "Klassiker", "Schnell"],
     ingredients: [
@@ -55,6 +61,9 @@ export const RECIPES: Recipe[] = [
     time: 45,
     servings: 4,
     calories: 580,
+    protein: 42,
+    carbs: 38,
+    fat: 22,
     difficulty: "Mittel",
     tags: ["Curry", "Hähnchen", "Glutenfrei"],
     ingredients: [
@@ -89,6 +98,9 @@ export const RECIPES: Recipe[] = [
     time: 30,
     servings: 2,
     calories: 420,
+    protein: 18,
+    carbs: 58,
+    fat: 14,
     difficulty: "Einfach",
     tags: ["Vegetarisch", "Vegan", "Glutenfrei", "Gesund"],
     ingredients: [
@@ -120,6 +132,9 @@ export const RECIPES: Recipe[] = [
     time: 35,
     servings: 4,
     calories: 780,
+    protein: 52,
+    carbs: 48,
+    fat: 38,
     difficulty: "Mittel",
     tags: ["Fleisch", "Klassiker", "Österreich"],
     ingredients: [
@@ -152,6 +167,9 @@ export const RECIPES: Recipe[] = [
     time: 20,
     servings: 2,
     calories: 380,
+    protein: 12,
+    carbs: 22,
+    fat: 28,
     difficulty: "Einfach",
     tags: ["Salat", "Schnell", "Vegetarisch"],
     ingredients: [
@@ -183,6 +201,9 @@ export const RECIPES: Recipe[] = [
     time: 30,
     servings: 2,
     calories: 520,
+    protein: 16,
+    carbs: 52,
+    fat: 26,
     difficulty: "Einfach",
     tags: ["Deutsch", "Schnell", "Vegetarisch möglich"],
     ingredients: [
@@ -214,6 +235,9 @@ export const RECIPES: Recipe[] = [
     time: 40,
     servings: 4,
     calories: 850,
+    protein: 48,
+    carbs: 62,
+    fat: 42,
     difficulty: "Mittel",
     tags: ["Fleisch", "Burger", "Amerikanisch"],
     ingredients: [
@@ -247,6 +271,9 @@ export const RECIPES: Recipe[] = [
     time: 60,
     servings: 2,
     calories: 620,
+    protein: 38,
+    carbs: 52,
+    fat: 22,
     difficulty: "Anspruchsvoll",
     tags: ["Suppe", "Japanisch", "Umami"],
     ingredients: [

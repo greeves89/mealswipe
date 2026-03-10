@@ -52,3 +52,15 @@ export async function DELETE(req: Request) {
   await query("DELETE FROM custom_recipes WHERE id = $1 AND user_id = $2", [id, session.id]);
   return NextResponse.json({ ok: true });
 }
+
+export async function PATCH(req: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id, imageDataUrl } = await req.json();
+  await query(
+    "UPDATE custom_recipes SET image_url = $1 WHERE id = $2 AND user_id = $3",
+    [imageDataUrl, id, session.id]
+  );
+  return NextResponse.json({ ok: true });
+}

@@ -1,11 +1,9 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, Scan, ChefHat, Clock, Flame, Plus, X, Check, FlipHorizontal, Crop } from "lucide-react";
-import Cropper from "react-easy-crop";
-import type { Area } from "react-easy-crop";
+import { Camera, Upload, Scan, ChefHat, Clock, Flame, Plus, X, Check, FlipHorizontal, Link as LinkIcon, Loader2 } from "lucide-react";
 
-type Tab = "camera" | "upload";
+type Tab = "camera" | "upload" | "url";
 
 interface ScannedRecipe {
   name: string;
@@ -36,33 +34,10 @@ const compressImage = (dataUrl: string, maxSize = 1200): Promise<string> =>
     img.src = dataUrl;
   });
 
-const getCroppedImg = (imageSrc: string, pixelCrop: Area): Promise<string> =>
-  new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = pixelCrop.width;
-      canvas.height = pixelCrop.height;
-      canvas.getContext("2d")?.drawImage(
-        img,
-        pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
-        0, 0, pixelCrop.width, pixelCrop.height
-      );
-      resolve(canvas.toDataURL("image/jpeg", 0.9));
-    };
-    img.src = imageSrc;
-  });
-
 export default function ScanPage() {
   const [activeTab, setActiveTab] = useState<Tab>("upload");
   // pages[0] = Vorderseite, pages[1] = Rückseite (optional)
   const [pages, setPages] = useState<(string | null)[]>([null, null]);
-  // Crop state
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [cropSlot, setCropSlot] = useState<0 | 1>(0);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScannedRecipe | null>(null);
   const [added, setAdded] = useState(false);
@@ -72,9 +47,10 @@ export default function ScanPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraTarget, setCameraTarget] = useState<0 | 1>(0);
+  const [urlInput, setUrlInput] = useState("");
+  const [urlLoading, setUrlLoading] = useState(false);
 
   const hasAnyPage = pages[0] !== null || pages[1] !== null;
-  const hasBothPages = pages[0] !== null && pages[1] !== null;
 
   const handleFileUpload = (slot: 0 | 1) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,32 +61,13 @@ export default function ScanPage() {
     }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      // Open cropper instead of setting page directly
-      setCropSrc(ev.target?.result as string);
-      setCropSlot(slot);
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
+      setPages((prev) => { const next = [...prev]; next[slot] = ev.target?.result as string; return next; });
+      setResult(null);
+      setAdded(false);
       setError(null);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
-  };
-
-  const confirmCrop = async () => {
-    if (!cropSrc || !croppedAreaPixels) return;
-    const cropped = await getCroppedImg(cropSrc, croppedAreaPixels);
-    setPages((prev) => { const next = [...prev]; next[cropSlot] = cropped; return next; });
-    setCropSrc(null);
-    setResult(null);
-    setAdded(false);
-  };
-
-  const skipCrop = () => {
-    if (!cropSrc) return;
-    setPages((prev) => { const next = [...prev]; next[cropSlot] = cropSrc; return next; });
-    setCropSrc(null);
-    setResult(null);
-    setAdded(false);
   };
 
   const startCamera = useCallback(async (target: 0 | 1) => {
@@ -136,12 +93,8 @@ export default function ScanPage() {
     canvas.height = videoRef.current.videoHeight;
     canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
     const dataUrl = canvas.toDataURL("image/jpeg");
+    setPages((prev) => { const next = [...prev]; next[cameraTarget] = dataUrl; return next; });
     stopCamera();
-    // Open cropper
-    setCropSrc(dataUrl);
-    setCropSlot(cameraTarget);
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
     setResult(null);
     setAdded(false);
   };
@@ -179,10 +132,11 @@ export default function ScanPage() {
   const handleAddRecipe = async () => {
     if (!result || added) return;
     try {
+      const imageDataUrl = pages[0] ?? null;
       const res = await fetch("/api/scan", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result),
+        body: JSON.stringify({ ...result, imageDataUrl }),
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -195,71 +149,36 @@ export default function ScanPage() {
     }
   };
 
+  const handleUrlImport = async () => {
+    if (!urlInput.trim()) return;
+    setUrlLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/import-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: urlInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Import fehlgeschlagen");
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import fehlgeschlagen");
+    } finally {
+      setUrlLoading(false);
+    }
+  };
+
   const handleTabChange = (tab: Tab) => {
     if (stream) stopCamera();
     setActiveTab(tab);
     setPages([null, null]);
     setResult(null);
     setError(null);
+    setUrlInput("");
   };
 
   const resetAll = () => { setPages([null, null]); setResult(null); setError(null); setAdded(false); };
-
-  // Fullscreen crop overlay
-  if (cropSrc) {
-    return (
-      <div className="fixed inset-0 z-50 bg-black flex flex-col">
-        <div className="flex items-center justify-between px-4 pt-safe pt-4 pb-3 bg-black/80">
-          <button onClick={() => setCropSrc(null)} className="text-white/60 hover:text-white p-2">
-            <X className="w-5 h-5" />
-          </button>
-          <p className="text-white font-bold text-sm">
-            {cropSlot === 0 ? "Vorderseite zuschneiden" : "Rückseite zuschneiden"}
-          </p>
-          <button onClick={skipCrop} className="text-[#64748b] text-sm px-2">
-            Überspringen
-          </button>
-        </div>
-
-        <div className="flex-1 relative">
-          <Cropper
-            image={cropSrc}
-            crop={crop}
-            zoom={zoom}
-            aspect={3 / 4}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
-            style={{
-              containerStyle: { background: "#000" },
-              cropAreaStyle: { border: "2px solid #14b8a6", borderRadius: "12px" },
-            }}
-          />
-        </div>
-
-        {/* Zoom slider */}
-        <div className="px-6 py-3 bg-black/80">
-          <input
-            type="range" min={1} max={3} step={0.01}
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full accent-teal-400"
-          />
-          <p className="text-[#64748b] text-xs text-center mt-1">Pinch oder Slider zum Zoomen</p>
-        </div>
-
-        <div className="px-4 pb-safe pb-6 bg-black/80">
-          <button
-            onClick={confirmCrop}
-            className="w-full flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 text-white py-4 rounded-2xl font-bold transition-all"
-          >
-            <Crop className="w-5 h-5" />
-            Zuschnitt bestätigen
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="p-4 space-y-5 pb-10">
@@ -273,8 +192,9 @@ export default function ScanPage() {
       {!result && (
         <div className="flex gap-2 bg-[#0f172a] p-1.5 rounded-2xl">
           {([
-            { id: "upload" as Tab, icon: Upload, label: "Bild hochladen" },
-            { id: "camera" as Tab, icon: Camera, label: "Foto aufnehmen" },
+            { id: "upload" as Tab, icon: Upload, label: "Bild" },
+            { id: "camera" as Tab, icon: Camera, label: "Kamera" },
+            { id: "url" as Tab, icon: LinkIcon, label: "Von URL" },
           ] as const).map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -318,22 +238,56 @@ export default function ScanPage() {
         </div>
       )}
 
+      {/* URL Import */}
+      {activeTab === "url" && !result && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-5">
+            <h3 className="font-bold mb-1 flex items-center gap-2">
+              <LinkIcon className="w-4 h-4 text-teal-400" /> Rezept-URL einfügen
+            </h3>
+            <p className="text-[#64748b] text-sm mb-4">
+              Füge die URL einer Rezeptseite ein — z.B. Chefkoch, Lecker, AllRecipes oder HelloFresh.
+            </p>
+            <input
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleUrlImport()}
+              placeholder="https://www.chefkoch.de/rezepte/..."
+              className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-sm placeholder-[#475569] focus:outline-none focus:border-teal-500/40 mb-4"
+              type="url"
+            />
+            <button
+              onClick={handleUrlImport}
+              disabled={!urlInput.trim() || urlLoading}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 disabled:opacity-50 text-white py-3.5 rounded-2xl font-bold transition-all"
+            >
+              {urlLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Scan className="w-5 h-5" />}
+              {urlLoading ? "Rezept wird importiert..." : "Rezept importieren"}
+            </button>
+          </div>
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm">{error}</div>
+          )}
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4">
+            <p className="text-xs text-[#94a3b8]">
+              <span className="text-blue-400 font-semibold">Tipp:</span> Funktioniert mit den meisten Rezeptseiten: Chefkoch, Lecker.de, BBC Food, AllRecipes, HelloFresh u.v.m.
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Page slots */}
-      {!result && !stream && (
+      {activeTab !== "url" && !result && !stream && (
         <div className="space-y-3">
-          {/* Page labels */}
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-[#94a3b8]">Fotos der Rezeptkarte</p>
-            {hasBothPages && (
-              <span className="text-xs text-teal-400 font-semibold">Vorder- & Rückseite ✓</span>
-            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             {([0, 1] as const).map((slot) => (
               <div key={slot} className="space-y-1">
                 <p className="text-xs text-[#64748b] font-medium text-center">
-                  {slot === 0 ? "Vorderseite" : "Rückseite"}{slot === 0 ? " *" : " (optional)"}
+                  {slot === 0 ? "Vorderseite *" : "Rückseite (optional)"}
                 </p>
                 {pages[slot] ? (
                   <div className="relative rounded-2xl overflow-hidden aspect-[3/4]">
@@ -345,9 +299,7 @@ export default function ScanPage() {
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
-                    <div className="absolute bottom-2 left-2 bg-teal-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      ✓
-                    </div>
+                    <div className="absolute bottom-2 left-2 bg-teal-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">✓</div>
                   </div>
                 ) : (
                   <div className="aspect-[3/4] rounded-2xl border-2 border-dashed border-[#1e293b] hover:border-teal-500/50 transition-all flex flex-col">
@@ -372,36 +324,29 @@ export default function ScanPage() {
                 )}
                 <input
                   ref={slot === 0 ? fileRef0 : fileRef1}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
+                  type="file" accept="image/*" className="hidden"
                   onChange={handleFileUpload(slot)}
                 />
               </div>
             ))}
           </div>
 
-          {/* HelloFresh hint */}
           {!hasAnyPage && (
             <div className="flex items-start gap-2 bg-orange-500/10 border border-orange-500/20 rounded-2xl p-3">
               <FlipHorizontal className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
               <p className="text-[#94a3b8] text-xs">
-                <span className="text-orange-400 font-semibold">HelloFresh-Tipp:</span> Scanne Vorder- und Rückseite der Karte — die KI kombiniert alle Infos automatisch!
+                <span className="text-orange-400 font-semibold">HelloFresh-Tipp:</span> Scanne Vorder- und Rückseite — die KI kombiniert alles automatisch!
               </p>
             </div>
           )}
         </div>
       )}
 
-      {/* Error */}
       {error && !result && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm">
-          {error}
-        </div>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm">{error}</div>
       )}
 
-      {/* Scan button */}
-      {hasAnyPage && !result && (
+      {hasAnyPage && !result && activeTab !== "url" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <button
             onClick={handleScan}
@@ -420,9 +365,6 @@ export default function ScanPage() {
               ? `Analysiere ${pages.filter(Boolean).length} Bild${pages.filter(Boolean).length > 1 ? "er" : ""}...`
               : `Rezept analysieren${pages[1] ? " (2 Seiten)" : ""}`}
           </button>
-          {!pages[0] && (
-            <p className="text-center text-[#475569] text-xs mt-2">Vorderseite ist Pflicht</p>
-          )}
         </motion.div>
       )}
 
@@ -487,6 +429,10 @@ export default function ScanPage() {
               </div>
             </div>
 
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm">{error}</div>
+            )}
+
             <button
               onClick={handleAddRecipe}
               disabled={added}
@@ -504,8 +450,7 @@ export default function ScanPage() {
         )}
       </AnimatePresence>
 
-      {/* How it works — only when no images */}
-      {!hasAnyPage && !result && (
+      {!hasAnyPage && !result && activeTab !== "url" && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

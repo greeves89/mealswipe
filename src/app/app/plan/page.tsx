@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp, getWeekDays } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -14,6 +14,9 @@ import {
   ChefHat,
   Heart,
   Search,
+  BookmarkPlus,
+  BookOpen,
+  Trash2,
 } from "lucide-react";
 
 const DAY_LABELS: Record<string, string> = {};
@@ -85,7 +88,7 @@ function RecipePickerModal({
         {likedRecipes.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
             <ChefHat className="w-12 h-12 text-[#475569] mb-3" />
-            <p className="text-[#64748b] text-sm mb-4">Noch keine Rezepte gespeichert</p>
+            <p className="text-[#64748b] text-sm mb-4">Noch keine Rezepte gespeichert oder gescannt</p>
             <Link href="/app/swipe" onClick={onClose}
               className="inline-flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-semibold">
               Rezepte entdecken
@@ -171,11 +174,77 @@ function RecipePickerModal({
   );
 }
 
+interface PlanTemplate {
+  id: string;
+  name: string;
+  meals: Record<string, Recipe>;
+  created_at: string;
+}
+
 export default function PlanPage() {
   const { weeklyPlan, likedRecipes, removeFromPlan, addToWeeklyPlan, generateShoppingList } = useApp();
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [addingDay, setAddingDay] = useState<string | null>(null);
+  const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [showLoadTemplate, setShowLoadTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templates, setTemplates] = useState<PlanTemplate[]>([]);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const days = getWeekDays();
+
+  useEffect(() => {
+    fetch("/api/custom-recipes")
+      .then(r => r.ok ? r.json() : { recipes: [] })
+      .then(d => setCustomRecipes(d.recipes ?? []))
+      .catch(() => {});
+  }, []);
+
+  const loadTemplates = () => {
+    fetch("/api/plan-templates")
+      .then(r => r.ok ? r.json() : { templates: [] })
+      .then(d => setTemplates(d.templates ?? []))
+      .catch(() => {});
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) return;
+    setSavingTemplate(true);
+    try {
+      await fetch("/api/plan-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: templateName.trim(), meals: weeklyPlan }),
+      });
+      setShowSaveTemplate(false);
+      setTemplateName("");
+    } catch { /* ignore */ } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleApplyTemplate = async (template: PlanTemplate) => {
+    const days = getWeekDays();
+    for (const [day, recipe] of Object.entries(template.meals)) {
+      // Map template days to current week
+      const dayIndex = Object.keys(template.meals).indexOf(day);
+      const targetDay = days[dayIndex];
+      if (targetDay && recipe) {
+        await addToWeeklyPlan(targetDay, recipe as Recipe);
+      }
+    }
+    setShowLoadTemplate(false);
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    await fetch(`/api/plan-templates?id=${id}`, { method: "DELETE" });
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  };
+
+  const allRecipes = [
+    ...customRecipes,
+    ...likedRecipes.filter(r => !customRecipes.some(c => c.id === r.id)),
+  ];
   const today = new Date().toISOString().split("T")[0];
   buildDayLabels(days);
 
@@ -188,11 +257,31 @@ export default function PlanPage() {
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
-      <div className="pt-2">
-        <h1 className="text-2xl font-black">Wochenplan</h1>
-        <p className="text-[#64748b] text-sm mt-1">
-          {plannedCount} von 7 Tagen geplant
-        </p>
+      <div className="pt-2 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-black">Wochenplan</h1>
+          <p className="text-[#64748b] text-sm mt-1">
+            {plannedCount} von 7 Tagen geplant
+          </p>
+        </div>
+        <div className="flex gap-2 mt-1">
+          {plannedCount > 0 && (
+            <button
+              onClick={() => setShowSaveTemplate(true)}
+              className="flex items-center gap-1 bg-[#0f172a] border border-white/10 hover:border-teal-500/40 text-[#94a3b8] hover:text-teal-400 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              Speichern
+            </button>
+          )}
+          <button
+            onClick={() => { loadTemplates(); setShowLoadTemplate(true); }}
+            className="flex items-center gap-1 bg-[#0f172a] border border-white/10 hover:border-teal-500/40 text-[#94a3b8] hover:text-teal-400 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Vorlagen
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
@@ -207,7 +296,11 @@ export default function PlanPage() {
       {/* Days */}
       <div className="space-y-3">
         {days.map((day, i) => {
-          const recipe = weeklyPlan[day];
+          const planned = weeklyPlan[day];
+          // Use fresh image from DB for custom recipes (base64 stripped from localStorage)
+          const recipe = planned
+            ? { ...planned, image: customRecipes.find(c => c.id === planned.id)?.image ?? planned.image }
+            : undefined;
           const isToday = day === today;
           const label = DE_DAYS[i];
           const dateStr = formatDayDate(day);
@@ -245,13 +338,18 @@ export default function PlanPage() {
                   className="flex items-center gap-3 px-4 pb-4 cursor-pointer"
                   onClick={() => setSelectedRecipe(recipe)}
                 >
-                  <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={recipe.image}
-                      alt={recipe.name}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-[#1e293b] flex items-center justify-center">
+                    {recipe.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={recipe.image} alt={recipe.name} className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    ) : (
+                      <span className="text-2xl">
+                        {["🍝","🍜","🌮","🥗","🍣","🥘","🍕","🍛","🥩","🍲"][
+                          Math.abs((recipe.name.charCodeAt(0) ?? 0) + (recipe.name.charCodeAt(2) ?? 0)) % 10
+                        ]}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate">{recipe.name}</p>
@@ -342,13 +440,114 @@ export default function PlanPage() {
       <AnimatePresence>
         {addingDay && (
           <RecipePickerModal
-            likedRecipes={likedRecipes}
+            likedRecipes={allRecipes}
             onPick={(recipe) => {
               addToWeeklyPlan(addingDay, recipe);
               setAddingDay(null);
             }}
             onClose={() => setAddingDay(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Save Template Modal */}
+      <AnimatePresence>
+        {showSaveTemplate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4"
+            onClick={() => setShowSaveTemplate(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 w-full max-w-sm"
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="font-black text-lg mb-1 flex items-center gap-2">
+                <BookmarkPlus className="w-5 h-5 text-teal-400" /> Als Vorlage speichern
+              </h3>
+              <p className="text-[#64748b] text-sm mb-4">Speichere diesen Wochenplan als Vorlage für spätere Wochen.</p>
+              <input
+                autoFocus
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleSaveTemplate()}
+                placeholder="Name der Vorlage (z.B. Vegetarische Woche)"
+                className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-sm placeholder-[#475569] focus:outline-none focus:border-teal-500/40 mb-4"
+              />
+              <div className="flex gap-3">
+                <button onClick={() => setShowSaveTemplate(false)} className="flex-1 py-3 rounded-2xl bg-[#1e293b] text-[#94a3b8] text-sm font-semibold">
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleSaveTemplate}
+                  disabled={!templateName.trim() || savingTemplate}
+                  className="flex-1 py-3 rounded-2xl bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold disabled:opacity-50 transition-all"
+                >
+                  {savingTemplate ? "Speichern..." : "Speichern"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Load Template Modal */}
+      <AnimatePresence>
+        {showLoadTemplate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 flex items-end"
+            onClick={() => setShowLoadTemplate(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="bg-[#0f172a] border-t border-white/10 rounded-t-3xl p-5 w-full max-h-[70vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-black text-lg flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-teal-400" /> Vorlagen
+                </h3>
+                <button onClick={() => setShowLoadTemplate(false)} className="w-8 h-8 rounded-full bg-[#1e293b] flex items-center justify-center">
+                  <X className="w-4 h-4 text-[#64748b]" />
+                </button>
+              </div>
+              {templates.length === 0 ? (
+                <div className="text-center py-8">
+                  <BookOpen className="w-12 h-12 text-[#475569] mx-auto mb-3" />
+                  <p className="text-[#64748b] text-sm">Noch keine Vorlagen gespeichert.</p>
+                  <p className="text-[#475569] text-xs mt-1">Plane eine Woche und klicke auf &quot;Speichern&quot;.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {templates.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 p-3 rounded-2xl bg-[#1e293b] hover:bg-[#253347] transition-colors">
+                      <button className="flex-1 text-left" onClick={() => handleApplyTemplate(t)}>
+                        <p className="font-bold text-sm">{t.name}</p>
+                        <p className="text-[#64748b] text-xs">{Object.keys(t.meals).length} Mahlzeiten · {new Date(t.created_at).toLocaleDateString("de-DE")}</p>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTemplate(t.id)}
+                        className="w-8 h-8 rounded-full bg-[#0f172a] flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-[#64748b] hover:text-red-400" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

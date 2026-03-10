@@ -4,7 +4,23 @@ import { useState, useCallback } from "react";
 import { useApp } from "@/lib/store";
 import { Recipe } from "@/lib/recipes";
 import { useRecipes } from "@/hooks/useRecipes";
-import { Heart, X, Clock, Flame, Star, ChefHat, RotateCcw, Zap, Loader2 } from "lucide-react";
+import { Heart, X, Clock, Flame, Star, ChefHat, RotateCcw, Zap, Loader2, SlidersHorizontal } from "lucide-react";
+
+const DIET_FILTERS = [
+  { id: "vegan", label: "🌱 Vegan", tag: "Vegan" },
+  { id: "vegetarisch", label: "🥦 Vegetarisch", tag: "Vegetarisch" },
+  { id: "glutenfrei", label: "🌾 Glutenfrei", tag: "Glutenfrei" },
+  { id: "keto", label: "🥑 Keto", tag: "Keto" },
+  { id: "laktosefrei", label: "🥛 Laktosefrei", tag: "Laktosefrei" },
+];
+
+const CALORIE_FILTERS = [
+  { id: "all", label: "Alle kcal", max: Infinity },
+  { id: "low", label: "< 300 kcal", max: 300 },
+  { id: "mid", label: "300–500 kcal", min: 300, max: 500 },
+  { id: "high", label: "500–800 kcal", min: 500, max: 800 },
+  { id: "xhigh", label: "> 800 kcal", min: 800, max: Infinity },
+];
 
 const SWIPE_THRESHOLD = 100;
 
@@ -177,9 +193,26 @@ export default function SwipePage() {
   const [index, setIndex] = useState(0);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeDiets, setActiveDiets] = useState<string[]>([]);
+  const [activeCalorie, setActiveCalorie] = useState("all");
   const { recipes, loading: recipesLoading } = useRecipes();
 
-  const deck = recipes;
+  const toggleDiet = (tag: string) => {
+    setActiveDiets(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+    setIndex(0);
+  };
+
+  const calFilter = CALORIE_FILTERS.find(f => f.id === activeCalorie) ?? CALORIE_FILTERS[0];
+
+  const filteredRecipes = recipes.filter(r => {
+    if (activeDiets.length > 0 && !activeDiets.every(d => r.tags.some(t => t.toLowerCase().includes(d.toLowerCase())))) return false;
+    if (calFilter.max !== Infinity && r.calories > calFilter.max) return false;
+    if ("min" in calFilter && calFilter.min !== undefined && r.calories < calFilter.min) return false;
+    return true;
+  });
+
+  const deck = filteredRecipes;
   const done = index >= deck.length;
   const remaining = deck.slice(index);
   const progress = Math.min((index / deck.length) * 100, 100);
@@ -225,12 +258,80 @@ export default function SwipePage() {
             {done ? "Alle bewertet!" : `${deck.length - index} Rezepte übrig`}
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-[#0f172a] rounded-xl px-3 py-2 border border-white/5">
-          <Zap className="w-4 h-4 text-teal-400" />
-          <span className="text-sm font-bold text-teal-400">{index}</span>
-          <span className="text-[#64748b] text-sm">/ {deck.length}</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+              (activeDiets.length > 0 || activeCalorie !== "all")
+                ? "bg-teal-500/20 border-teal-500/40 text-teal-400"
+                : "bg-[#0f172a] border-white/5 text-[#64748b] hover:text-white"
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            {activeDiets.length > 0 || activeCalorie !== "all" ? `${activeDiets.length + (activeCalorie !== "all" ? 1 : 0)} Filter` : "Filter"}
+          </button>
+          <div className="flex items-center gap-2 bg-[#0f172a] rounded-xl px-3 py-2 border border-white/5">
+            <Zap className="w-4 h-4 text-teal-400" />
+            <span className="text-sm font-bold text-teal-400">{index}</span>
+            <span className="text-[#64748b] text-sm">/ {deck.length}</span>
+          </div>
         </div>
       </div>
+
+      {/* Filter Panel */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden mb-3"
+          >
+            <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-4 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">Ernährung</p>
+                <div className="flex flex-wrap gap-2">
+                  {DIET_FILTERS.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => toggleDiet(f.tag)}
+                      className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-all ${
+                        activeDiets.includes(f.tag) ? "bg-teal-500 text-white" : "bg-[#1e293b] text-[#94a3b8] hover:bg-[#253347]"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-2">Kalorien</p>
+                <div className="flex flex-wrap gap-2">
+                  {CALORIE_FILTERS.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => { setActiveCalorie(f.id); setIndex(0); }}
+                      className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-all ${
+                        activeCalorie === f.id ? "bg-orange-500 text-white" : "bg-[#1e293b] text-[#94a3b8] hover:bg-[#253347]"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {(activeDiets.length > 0 || activeCalorie !== "all") && (
+                <button
+                  onClick={() => { setActiveDiets([]); setActiveCalorie("all"); setIndex(0); }}
+                  className="text-xs text-red-400 hover:text-red-300 font-semibold"
+                >
+                  Filter zurücksetzen
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Progress */}
       <div className="w-full bg-[#1e293b] rounded-full h-1.5 mb-4">

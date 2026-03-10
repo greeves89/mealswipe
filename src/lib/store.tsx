@@ -70,9 +70,23 @@ function loadLocal() {
   }
 }
 
+function stripBase64Images<T>(obj: T): T {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(stripBase64Images) as unknown as T;
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (k === "image" && typeof v === "string" && v.startsWith("data:")) {
+      result[k] = "";
+    } else {
+      result[k] = stripBase64Images(v);
+    }
+  }
+  return result as T;
+}
+
 function saveLocal(data: object) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+    localStorage.setItem(LS_KEY, JSON.stringify(stripBase64Images(data)));
   } catch {}
 }
 
@@ -96,7 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Get current user via API
+  // Get current user + load plan from DB
   useEffect(() => {
     async function fetchUser() {
       try {
@@ -105,6 +119,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const user = await res.json();
           if (user?.id) {
             setUserId(user.id);
+            // Load weekly plan from DB (source of truth)
+            try {
+              const weekStart = getWeekDaysLocal()[0];
+              const planRes = await fetch(`/api/meal-plans?week_start=${weekStart}`);
+              if (planRes.ok) {
+                const { plans } = await planRes.json();
+                if (Array.isArray(plans) && plans.length > 0) {
+                  const planMap: MealPlan = {};
+                  for (const p of plans) {
+                    if (p.day && p.recipe_data) planMap[p.day] = p.recipe_data;
+                  }
+                  setWeeklyPlan(planMap);
+                }
+              }
+            } catch { /* keep localStorage plan */ }
           }
         }
       } catch {
@@ -163,8 +192,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWeeklyPlan((prev) => { const n = { ...prev }; delete n[day]; return n; });
     if (userId) {
       try {
-        await fetch(`/api/meal-plans?day=${encodeURIComponent(day)}`, {
+        await fetch("/api/meal-plans", {
           method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ day }),
         });
       } catch {
         // Gracefully fail — localStorage is primary storage

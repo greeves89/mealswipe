@@ -19,6 +19,9 @@ import {
   UserPlus,
   UserMinus,
   RefreshCw,
+  Activity,
+  Download,
+  Flame,
 } from "lucide-react";
 import { FeedbackModal } from "@/components/FeedbackModal";
 
@@ -151,6 +154,35 @@ export default function ProfilePage() {
     }
     router.push("/");
     router.refresh();
+  };
+
+  const [healthStats, setHealthStats] = useState<{
+    tracked_days: number; avg_calories: number;
+    avg_protein: number; avg_carbs: number; avg_fat: number;
+  } | null>(null);
+  const [exportingHealth, setExportingHealth] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/health-export?days=30&format=json")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.summary) setHealthStats(d.summary); })
+      .catch(() => {});
+  }, []);
+
+  const handleHealthExport = async () => {
+    setExportingHealth(true);
+    try {
+      const res = await fetch("/api/health-export?days=30&format=csv");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `forkly-nutrition-${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ } finally {
+      setExportingHealth(false);
+    }
   };
 
   const toggleDiet = (diet: string) => {
@@ -546,6 +578,54 @@ export default function ProfilePage() {
           </div>
           <ChevronRight className="w-4 h-4 text-[#475569] group-hover:text-teal-400 transition-colors" />
         </Link>
+      </motion.div>
+
+      {/* Health & Nutrition Export */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.24 }}
+        className="bg-[#0f172a] border border-white/5 rounded-2xl p-4 space-y-3"
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-rose-400" />
+          </div>
+          <div>
+            <p className="text-[#f8fafc] text-sm font-semibold">Gesundheits-Export</p>
+            <p className="text-[#475569] text-xs">Nährwerte der letzten 30 Tage</p>
+          </div>
+        </div>
+
+        {healthStats && healthStats.tracked_days > 0 ? (
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "kcal", value: healthStats.avg_calories, color: "text-orange-400" },
+              { label: "Protein", value: `${healthStats.avg_protein}g`, color: "text-blue-400" },
+              { label: "Carbs", value: `${healthStats.avg_carbs}g`, color: "text-yellow-400" },
+              { label: "Fett", value: `${healthStats.avg_fat}g`, color: "text-red-400" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-[#1e293b] rounded-xl p-2 text-center">
+                <p className={`text-sm font-black ${color}`}>{value}</p>
+                <p className="text-[10px] text-[#475569] mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-[#475569]">Plane Mahlzeiten mit Nährwerten, um Statistiken zu sehen.</p>
+        )}
+
+        <button
+          onClick={handleHealthExport}
+          disabled={exportingHealth}
+          className="w-full flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/30 text-rose-400 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-50"
+        >
+          {exportingHealth ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          CSV exportieren (Apple Health / Google Fit)
+        </button>
+        <p className="text-[10px] text-[#334155] text-center">
+          CSV-Import: Apple Health via App &quot;MyFitnessPal&quot; · Google Fit via Web
+        </p>
       </motion.div>
 
       {/* Feedback */}

@@ -7,7 +7,7 @@ export default function ImpressumPage() {
         <section className="mb-8">
           <h2 className="text-lg font-bold text-[#f8fafc] mb-2">Angaben gemäß § 5 TMG</h2>
           <p>Daniel Alisch</p>
-          <p>FutureApp UG (in Gründung)</p>
+          <p>SmartApps UG (in Gründung)</p>
           <p>Zum Weizenring 1</p>
           <p>14469 Potsdam</p>
         </section>

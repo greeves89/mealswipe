@@ -434,6 +434,9 @@ export default function ScanPage() {
               ? `Analysiere ${pages.filter(Boolean).length} Bild${pages.filter(Boolean).length > 1 ? "er" : ""}...`
               : `Rezept analysieren${pages[1] ? " (2 Seiten)" : ""}`}
           </button>
+          <p className="text-center text-[10px] text-[#334155] mt-1.5">
+            Bilder werden zur Analyse an OpenAI übertragen · <a href="/datenschutz" target="_blank" className="hover:text-[#475569]">Datenschutz</a>
+          </p>
         </motion.div>
       )}
 

@@ -23,7 +23,7 @@ export default function DatenschutzPage() {
           <h2 className="text-lg font-bold text-[#f8fafc] mb-2">2. Verantwortlicher</h2>
           <p className="text-sm leading-relaxed">
             Daniel Alisch<br />
-            FutureApp UG (in Gründung)<br />
+            SmartApps UG (in Gründung)<br />
             Zum Weizenring 1, 14469 Potsdam<br />
             E-Mail: <a href="mailto:daniel.alisch@me.com" className="text-teal-400 hover:underline">daniel.alisch@me.com</a>
           </p>
@@ -73,6 +73,15 @@ export default function DatenschutzPage() {
             Rezeptdaten werden von der Spoonacular API bezogen. Dabei werden keine personenbezogenen Daten an
             Spoonacular übermittelt.
           </p>
+          <h3 className="font-semibold text-[#cbd5e1] mt-4 mb-1">OpenAI (KI-Bildanalyse)</h3>
+          <p className="text-sm leading-relaxed">
+            Für die Rezeptkarten-Scan-Funktion nutzen wir die API von OpenAI, Inc. (San Francisco, USA). Wenn Sie
+            ein Foto einer Rezeptkarte scannen, wird dieses Bild zur Analyse an OpenAI übertragen. OpenAI verarbeitet
+            die Bilddaten gemäß seiner Datenschutzrichtlinie (<a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-teal-400 hover:underline">openai.com/policies/privacy-policy</a>).
+            Die Datenübermittlung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie
+            ggf. auf Basis von Standardvertragsklauseln (Art. 46 DSGVO) für die Übermittlung in die USA.
+            Die Scan-Funktion ist optional — Sie können Rezepte auch manuell eingeben.
+          </p>
         </section>
 
         <section className="mb-8">
@@ -87,7 +96,8 @@ export default function DatenschutzPage() {
             <li>Widerspruch gegen die Verarbeitung (Art. 21 DSGVO)</li>
           </ul>
           <p className="text-sm leading-relaxed mt-2">
-            Anfragen richten Sie bitte an:{" "}
+            Zur Datenlöschung (Art. 17 DSGVO) können Sie Ihr Konto direkt in der App unter „Profil → Konto dauerhaft löschen" selbst entfernen. Alle zugehörigen Daten werden sofort gelöscht.
+            Für alle anderen Anfragen wenden Sie sich bitte an:{" "}
             <a href="mailto:daniel.alisch@me.com" className="text-teal-400 hover:underline">daniel.alisch@me.com</a>
           </p>
         </section>

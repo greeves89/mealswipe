@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Recipe, RECIPES } from "@/lib/recipes";
+import { Recipe, RECIPES, classifyRecipe } from "@/lib/recipes";
 
 interface RecipeFilters {
   cuisine?: string;
@@ -25,7 +25,8 @@ export function useRecipes(filters?: RecipeFilters) {
     fetch(`/api/recipes?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        const list: Recipe[] = (data.noApiKey || !data.recipes?.length) ? [...RECIPES] : [...data.recipes];
+        const raw: Recipe[] = (data.noApiKey || !data.recipes?.length) ? [...RECIPES] : [...data.recipes];
+        const list = raw.map(classifyRecipe);
         // Fisher-Yates shuffle for random order every session
         for (let i = list.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -34,7 +35,7 @@ export function useRecipes(filters?: RecipeFilters) {
         setRecipes(list);
       })
       .catch(() => {
-        setRecipes(RECIPES);
+        setRecipes(RECIPES.map(classifyRecipe));
         setError("Rezepte konnten nicht geladen werden");
       })
       .finally(() => setLoading(false));

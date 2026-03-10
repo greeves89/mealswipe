@@ -119,6 +119,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const user = await res.json();
           if (user?.id) {
             setUserId(user.id);
+            // Load profile (household) from DB
+            try {
+              const profileRes = await fetch("/api/profile");
+              if (profileRes.ok) {
+                const { profile } = await profileRes.json();
+                if (profile) {
+                  setHouseholdState({
+                    name: profile.household_name || "Mein Haushalt",
+                    people: profile.household_people || 2,
+                    diets: profile.household_diets || [],
+                  });
+                }
+              }
+            } catch { /* keep localStorage household */ }
             // Load weekly plan from DB (source of truth)
             try {
               const weekStart = getWeekDaysLocal()[0];

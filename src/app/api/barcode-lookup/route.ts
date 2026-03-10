@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFromRequest } from "@/lib/session";
 
 interface OFFProduct {
   product_name?: string;
@@ -59,6 +60,9 @@ function parseQuantityAndUnit(quantityStr: string | undefined): { quantity: numb
 
 // GET /api/barcode-lookup?barcode=<EAN>
 export async function GET(req: NextRequest) {
+  const session = await getSessionFromRequest(req);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const barcode = req.nextUrl.searchParams.get("barcode");
   if (!barcode || !/^\d{8,14}$/.test(barcode)) {
     return NextResponse.json({ error: "Invalid barcode" }, { status: 400 });

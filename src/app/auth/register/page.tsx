@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -23,16 +23,19 @@ const BENEFITS = [
   "Rezeptkarten scannen",
 ];
 
-export default function RegisterPage() {
+function RegisterForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteCode = searchParams.get("invite");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +49,10 @@ export default function RegisterPage() {
     }
     if (password !== confirmPassword) {
       setError("Passwörter stimmen nicht überein");
+      return;
+    }
+    if (!consentAccepted) {
+      setError("Bitte stimme der Datenschutzerklärung zu");
       return;
     }
     setLoading(true);
@@ -66,8 +73,8 @@ export default function RegisterPage() {
         return;
       }
 
-      // Registration successful — redirect to onboarding
-      window.location.replace("/onboarding");
+      // Registration successful — redirect to join page if invite, else onboarding
+      window.location.replace(inviteCode ? `/join/${inviteCode}` : "/onboarding");
     } catch {
       setError("Netzwerkfehler. Bitte versuche es erneut.");
       setLoading(false);
@@ -228,9 +235,30 @@ export default function RegisterPage() {
             </div>
           </div>
 
+          {/* Consent checkbox — DSGVO Art. 7 */}
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <div
+              onClick={() => setConsentAccepted(v => !v)}
+              className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                consentAccepted
+                  ? "bg-teal-500 border-teal-500"
+                  : "border-white/20 bg-[#0f172a] group-hover:border-teal-500/40"
+              }`}
+            >
+              {consentAccepted && <Check className="w-3 h-3 text-white" />}
+            </div>
+            <span className="text-xs text-[#64748b] leading-relaxed">
+              Ich habe die{" "}
+              <a href="/datenschutz" target="_blank" className="text-teal-400 hover:underline">
+                Datenschutzerklärung
+              </a>{" "}
+              gelesen und stimme der Verarbeitung meiner Daten zur Nutzung von forkly zu.
+            </span>
+          </label>
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !consentAccepted}
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 disabled:opacity-60 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-teal-500/20"
           >
             {loading ? (
@@ -255,5 +283,14 @@ export default function RegisterPage() {
         </p>
       </motion.div>
     </div>
+  );
+}
+
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

@@ -22,6 +22,9 @@ import {
   Activity,
   Download,
   Flame,
+  Trash2,
+  AlertTriangle,
+  Lock,
 } from "lucide-react";
 import { FeedbackModal } from "@/components/FeedbackModal";
 
@@ -59,6 +62,10 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [household, setHousehold] = useState<{
     id: string; invite_code: string; name: string; is_owner: boolean;
   } | null>(null);
@@ -145,6 +152,30 @@ export default function ProfilePage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/account/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.error ?? "Fehler beim Löschen");
+        setDeleting(false);
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } catch {
+      setDeleteError("Netzwerkfehler. Bitte erneut versuchen.");
+      setDeleting(false);
+    }
+  };
+
   const handleSignOut = async () => {
     setSigningOut(true);
     try {
@@ -218,6 +249,14 @@ export default function ProfilePage() {
   const copyInviteCode = async () => {
     if (!household?.invite_code) return;
     await navigator.clipboard.writeText(household.invite_code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const copyInviteLink = async () => {
+    if (!household?.invite_code) return;
+    const link = `${window.location.origin}/join/${household.invite_code}`;
+    await navigator.clipboard.writeText(link);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };
@@ -437,8 +476,15 @@ export default function ProfilePage() {
                     </button>
                   )}
                 </div>
+                <button
+                  onClick={copyInviteLink}
+                  className="w-full mt-2 flex items-center justify-center gap-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-400 text-xs font-semibold py-2.5 rounded-xl transition-all"
+                >
+                  {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedCode ? "Link kopiert!" : "Einladungs-Link kopieren"}
+                </button>
                 <p className="text-xs text-[#475569] mt-1.5">
-                  Code teilen → andere können deinem Haushalt beitreten
+                  Link teilen → andere klicken und treten direkt bei
                 </p>
               </div>
 
@@ -696,8 +742,93 @@ export default function ProfilePage() {
         </button>
       </motion.div>
 
+      {/* Legal links */}
+      <div className="flex justify-center gap-4 text-xs text-[#334155] pt-2">
+        <a href="/datenschutz" target="_blank" className="hover:text-[#64748b] transition-colors">Datenschutz</a>
+        <span>·</span>
+        <a href="/impressum" target="_blank" className="hover:text-[#64748b] transition-colors">Impressum</a>
+      </div>
+
+      {/* Account löschen */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full flex items-center justify-center gap-2 text-[#475569] hover:text-red-400 py-2 text-xs transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Konto dauerhaft löschen
+        </button>
+      </motion.div>
+
       <div className="h-4" />
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm bg-[#0f172a] border border-red-500/20 rounded-2xl p-6 space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-[#f8fafc] font-bold">Konto löschen</h3>
+                <p className="text-xs text-[#64748b]">Diese Aktion ist unwiderruflich</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-[#94a3b8]">
+              Alle deine Daten (Rezepte, Mahlzeitenpläne, Profil) werden dauerhaft gelöscht.
+              Aktive Abonnements werden automatisch gekündigt.
+            </p>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wider">
+                Passwort zur Bestätigung
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#475569]" />
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Dein Passwort"
+                  className="w-full bg-[#1e293b] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-[#f8fafc] placeholder-[#334155] focus:outline-none focus:border-red-500/40 text-sm"
+                />
+              </div>
+            </div>
+
+            {deleteError && (
+              <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{deleteError}</p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeletePassword(""); setDeleteError(null); }}
+                className="flex-1 py-3 rounded-xl bg-[#1e293b] text-[#94a3b8] text-sm font-semibold hover:bg-[#263548] transition-all"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={!deletePassword || deleting}
+                className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Löschen
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

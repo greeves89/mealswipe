@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "daniel.alisch@me.com").split(",").map(e => e.trim());
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "").split(",").map(e => e.trim()).filter(Boolean);
 
 interface SpoonacularNutrient { name: string; amount: number; }
 interface SpoonacularIngredient {

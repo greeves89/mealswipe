@@ -22,8 +22,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!recipe) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
 
   await query(
-    "UPDATE custom_recipes SET is_public = $1 WHERE id = $2",
-    [is_public, id]
+    "UPDATE custom_recipes SET is_public = $1 WHERE id = $2 AND user_id = $3",
+    [is_public, id, session.id]
   );
 
   return NextResponse.json({ ok: true, is_public });

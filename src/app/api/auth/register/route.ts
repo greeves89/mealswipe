@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { query, queryOne } from "@/lib/db";
 import { createSession, COOKIE_OPTIONS, SessionUser } from "@/lib/session";
+import { rateLimit } from "@/lib/ratelimit";
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!rateLimit(`register:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Zu viele Versuche. Bitte warte eine Minute." }, { status: 429 });
+  }
+
   try {
     const { name, email, password } = await req.json();
 

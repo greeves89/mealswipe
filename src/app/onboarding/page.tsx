@@ -94,12 +94,26 @@ export default function OnboardingPage() {
     );
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step < TOTAL_STEPS - 1) {
       setStep((s) => s + 1);
     } else {
-      // Finish
+      // Finish — save to store AND profile API
       setHousehold({ name, people, diets });
+      try {
+        await fetch("/api/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            household_name: name,
+            household_people: people,
+            household_diets: diets,
+            preferred_cuisines: cuisines,
+            time_budget: timeBudget,
+            cooking_skill: skill,
+          }),
+        });
+      } catch { /* non-critical, local store still saved */ }
       router.push("/app/swipe");
     }
   };

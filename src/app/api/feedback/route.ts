@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
+import { rateLimit } from "@/lib/ratelimit";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "daniel.alisch@me.com").split(",").map(e => e.trim());
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "").split(",").map(e => e.trim()).filter(Boolean);
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!rateLimit(`feedback:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Zu viele Anfragen. Bitte warte eine Minute." }, { status: 429 });
+  }
+
   const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Nicht eingeloggt" }, { status: 401 });
+
   const { type, rating, message } = await req.json();
 
   if (!message || message.trim().length < 3) {

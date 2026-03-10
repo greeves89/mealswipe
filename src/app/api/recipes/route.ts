@@ -77,9 +77,10 @@ export async function GET(req: NextRequest) {
     const values: (string | number)[] = [];
     let idx = 1;
     if (searchQuery) {
-      conditions.push(`(LOWER(name) LIKE $${idx} OR LOWER(description) LIKE $${idx})`);
-      values.push(`%${searchQuery.toLowerCase()}%`);
-      idx++;
+      const pattern = `%${searchQuery.toLowerCase()}%`;
+      conditions.push(`(LOWER(name) LIKE $${idx} OR LOWER(description) LIKE $${idx + 1})`);
+      values.push(pattern, pattern);
+      idx += 2;
     }
     if (cuisine) {
       conditions.push(`LOWER(cuisine) = $${idx}`);

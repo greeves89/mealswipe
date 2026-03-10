@@ -1,3 +1,82 @@
+// ── Auto-classification ───────────────────────────────────────────────────────
+// Analyzes recipe ingredients/name and enriches tags with correct dietary info.
+// Applied to all recipes (static + DB) in useRecipes.
+
+const MEAT_ING = [
+  "hähnchen", "hühnchen", "hühner", "pute", "ente", "gans",
+  "rinderhack", "rinderrücken", "rindfleisch", "rinderbraten", "rinderbrühe",
+  "kalbsschnitzel", "kalbsfleisch", "kalbsfilet",
+  "schweinefleisch", "schweinshaxe", "schweinebauch", "speck", "speckwürfel",
+  "bacon", "guanciale", "chashu", "prosciutto", "salami", "schinken",
+  "bratwurst", "wurst", "leberwurst", "mortadella",
+  "lammfleisch", "lammkeule", "hackfleisch",
+  "fleisch", "geflügel",
+];
+
+const FISH_ING = [
+  "lachs", "lachsfilet", "kabeljau", "thunfisch", "garnelen", "shrimps",
+  "muscheln", "tintenfisch", "calamari", "sardinen", "hering", "makrele",
+  "fischsauce", "fischfilet", "meeresfrüchte",
+];
+
+const DAIRY_ING = [
+  "milch", "vollmilch", "buttermilch", "sahne", "schlagsahne", "saure sahne",
+  "butter", "butterschmalz",
+  "käse", "parmesan", "mozzarella", "büffelmozzarella", "feta", "pecorino",
+  "cheddar", "gouda", "emmentaler", "ricotta", "mascarpone",
+  "crème fraîche", "creme fraiche", "frischkäse", "quark", "joghurt",
+];
+
+const GLUTEN_ING = [
+  "weizenmehl", "mehl", "roggenmehl", "dinkelmehl",
+  "semmelbrösel", "paniermehl", "semmeln", "semmel",
+  "brot", "baguette", "croûton", "crouton",
+  "pizzateig", "blätterteig", "hefeteig",
+  "spaghetti", "pasta", "nudeln", "ramen", "udon",
+  "tortilla", "wrap", "pita",
+  "spätzle",
+];
+
+// These contain "nudeln" etc. but are gluten-free
+const GLUTEN_SAFE = ["reisnudeln", "glasnudeln", "reismehl", "maisnudeln", "mai snudeln"];
+
+const EGG_ING = ["ei ", "eier", "eigelb", "eiweiß", "eiern"];
+
+export function classifyRecipe(recipe: Recipe): Recipe {
+  const text = [
+    recipe.name,
+    recipe.description,
+    ...recipe.ingredients.map(i => i.name),
+    ...recipe.tags,
+  ].join(" ").toLowerCase();
+
+  const has = (list: string[]) => list.some(k => text.includes(k));
+  const hasMeat = has(MEAT_ING);
+  const hasFish = has(FISH_ING) || (text.includes("fisch") && !text.includes("fischlos") && !text.includes("fischfrei"));
+  const hasDairy = has(DAIRY_ING);
+  const hasEggs = EGG_ING.some(k => text.includes(k));
+  const hasGluten = has(GLUTEN_ING) && !GLUTEN_SAFE.some(s => text.includes(s));
+
+  const isAnimal = hasMeat || hasFish;
+  const isVegetarisch = !isAnimal;
+  const isVegan = !isAnimal && !hasDairy && !hasEggs;
+  const isGlutenfrei = !hasGluten;
+  const isLaktosefrei = !hasDairy;
+
+  // Start from scratch with non-dietary tags, then add correct ones
+  const dietaryTags = new Set(["Vegan", "Vegetarisch", "Glutenfrei", "Laktosefrei", "Fleisch", "Fisch"]);
+  let tags = recipe.tags.filter(t => !dietaryTags.has(t));
+
+  if (hasMeat) tags.push("Fleisch");
+  if (hasFish) tags.push("Fisch");
+  if (isVegetarisch) tags.push("Vegetarisch");
+  if (isVegan) tags.push("Vegan");
+  if (isGlutenfrei) tags.push("Glutenfrei");
+  if (isLaktosefrei) tags.push("Laktosefrei");
+
+  return { ...recipe, tags };
+}
+
 export interface Recipe {
   id: string;
   name: string;

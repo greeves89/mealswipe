@@ -1,9 +1,9 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, Scan, ChefHat, Clock, Flame, Plus, X, Check, FlipHorizontal, Link as LinkIcon, Loader2 } from "lucide-react";
+import { Camera, Upload, Scan, ChefHat, Clock, Flame, Plus, X, Check, FlipHorizontal, Link as LinkIcon, Loader2, Share2 } from "lucide-react";
 
-type Tab = "camera" | "upload" | "url";
+type Tab = "camera" | "upload" | "url" | "social";
 
 interface ScannedRecipe {
   name: string;
@@ -49,6 +49,8 @@ export default function ScanPage() {
   const [cameraTarget, setCameraTarget] = useState<0 | 1>(0);
   const [urlInput, setUrlInput] = useState("");
   const [urlLoading, setUrlLoading] = useState(false);
+  const [socialText, setSocialText] = useState("");
+  const [socialLoading, setSocialLoading] = useState(false);
 
   const hasAnyPage = pages[0] !== null || pages[1] !== null;
 
@@ -169,6 +171,26 @@ export default function ScanPage() {
     }
   };
 
+  const handleSocialImport = async () => {
+    if (!socialText.trim()) return;
+    setSocialLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/import-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: socialText.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Import fehlgeschlagen");
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import fehlgeschlagen");
+    } finally {
+      setSocialLoading(false);
+    }
+  };
+
   const handleTabChange = (tab: Tab) => {
     if (stream) stopCamera();
     setActiveTab(tab);
@@ -176,6 +198,7 @@ export default function ScanPage() {
     setResult(null);
     setError(null);
     setUrlInput("");
+    setSocialText("");
   };
 
   const resetAll = () => { setPages([null, null]); setResult(null); setError(null); setAdded(false); };
@@ -194,7 +217,8 @@ export default function ScanPage() {
           {([
             { id: "upload" as Tab, icon: Upload, label: "Bild" },
             { id: "camera" as Tab, icon: Camera, label: "Kamera" },
-            { id: "url" as Tab, icon: LinkIcon, label: "Von URL" },
+            { id: "url" as Tab, icon: LinkIcon, label: "URL" },
+            { id: "social" as Tab, icon: Share2, label: "Social" },
           ] as const).map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -276,8 +300,53 @@ export default function ScanPage() {
         </motion.div>
       )}
 
+      {/* Social Media Import */}
+      {activeTab === "social" && !result && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-5">
+            <h3 className="font-bold mb-1 flex items-center gap-2">
+              <Share2 className="w-4 h-4 text-pink-400" /> Social Media Import
+            </h3>
+            <p className="text-[#64748b] text-sm mb-4">
+              Kopiere den Text eines Rezept-Posts von Instagram, TikTok oder anderen Plattformen und füge ihn hier ein.
+            </p>
+            <textarea
+              value={socialText}
+              onChange={e => setSocialText(e.target.value)}
+              placeholder={"Rezept-Text hier einfügen…\n\nz.B. aus dem Beschreibungstext eines Instagram-Posts oder TikTok-Videos"}
+              rows={8}
+              className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-sm placeholder-[#475569] focus:outline-none focus:border-pink-500/40 mb-4 resize-none"
+            />
+            <button
+              onClick={handleSocialImport}
+              disabled={!socialText.trim() || socialLoading}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 disabled:opacity-50 text-white py-3.5 rounded-2xl font-bold transition-all"
+            >
+              {socialLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Scan className="w-5 h-5" />}
+              {socialLoading ? "Rezept wird erkannt..." : "Rezept erkennen"}
+            </button>
+          </div>
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm">{error}</div>
+          )}
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide">So geht&apos;s</p>
+            {[
+              { platform: "Instagram", steps: "Öffne den Rezept-Post → tippe auf \"...\" → \"Kopieren\" → hier einfügen" },
+              { platform: "TikTok", steps: "Tippe auf \"Beschreibung\" → halte gedrückt → \"Alles kopieren\" → hier einfügen" },
+              { platform: "Andere", steps: "Kopiere einfach den Rezepttext aus einem beliebigen Beitrag oder Chat" },
+            ].map(({ platform, steps }) => (
+              <div key={platform} className="flex gap-3">
+                <span className="text-xs font-bold text-pink-400 w-16 shrink-0 mt-0.5">{platform}</span>
+                <p className="text-xs text-[#64748b]">{steps}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Page slots */}
-      {activeTab !== "url" && !result && !stream && (
+      {activeTab !== "url" && activeTab !== "social" && !result && !stream && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-[#94a3b8]">Fotos der Rezeptkarte</p>
@@ -346,7 +415,7 @@ export default function ScanPage() {
         <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm">{error}</div>
       )}
 
-      {hasAnyPage && !result && activeTab !== "url" && (
+      {hasAnyPage && !result && activeTab !== "url" && activeTab !== "social" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <button
             onClick={handleScan}
@@ -450,7 +519,7 @@ export default function ScanPage() {
         )}
       </AnimatePresence>
 
-      {!hasAnyPage && !result && activeTab !== "url" && (
+      {!hasAnyPage && !result && activeTab !== "url" && activeTab !== "social" && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

@@ -6,7 +6,7 @@ if (!process.env.JWT_SECRET) {
 }
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const COOKIE_NAME = "forkly-session";
-const EXPIRES_IN = 60 * 60 * 24 * 30; // 30 days
+const EXPIRES_IN = 60 * 60 * 24 * 14; // 14 days (reduced from 30)
 
 export interface SessionUser {
   id: string;
@@ -51,10 +51,13 @@ export function getSessionFromRequest(req: Request): Promise<SessionUser | null>
   return verifySession(match[1]);
 }
 
+// Default to secure=true; only disable explicitly in dev via COOKIE_SECURE=false
+const isCookieSecure = process.env.COOKIE_SECURE !== "false";
+
 export const COOKIE_OPTIONS = {
   name: COOKIE_NAME,
   httpOnly: true,
-  secure: process.env.COOKIE_SECURE !== "false",
+  secure: isCookieSecure,
   sameSite: "lax" as const,
   maxAge: EXPIRES_IN,
   path: "/",

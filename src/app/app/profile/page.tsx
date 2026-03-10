@@ -580,6 +580,29 @@ export default function ProfilePage() {
         </Link>
       </motion.div>
 
+      {/* Community / Freunde */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.23 }}
+      >
+        <Link
+          href="/app/social"
+          className="w-full flex items-center justify-between bg-[#0f172a] border border-white/5 hover:border-purple-500/20 rounded-2xl p-4 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center">
+              <Users className="w-4 h-4 text-purple-400" />
+            </div>
+            <div>
+              <p className="text-[#f8fafc] text-sm font-semibold">Community</p>
+              <p className="text-[#475569] text-xs">Freunde & geteilte Rezepte</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[#475569] group-hover:text-purple-400 transition-colors" />
+        </Link>
+      </motion.div>
+
       {/* Health & Nutrition Export */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}

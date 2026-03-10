@@ -142,3 +142,18 @@ CREATE TABLE IF NOT EXISTS feedback (
   status     TEXT NOT NULL DEFAULT 'open',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ─── SOCIAL: PUBLIC RECIPE SHARING ──────
+ALTER TABLE custom_recipes ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE;
+
+-- ─── SOCIAL: FRIENDSHIPS ─────────────────
+CREATE TABLE IF NOT EXISTS friendships (
+  id            UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  requester_id  UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  addressee_id  UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  status        TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (requester_id, addressee_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friendships_requester ON friendships (requester_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships (addressee_id);

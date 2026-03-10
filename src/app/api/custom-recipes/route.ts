@@ -11,10 +11,11 @@ export async function GET() {
       id: string; name: string; description: string; image_url: string;
       cuisine: string; time: number; servings: number; calories: number;
       difficulty: string; tags: string[]; ingredients: unknown; steps: string[];
-      rating: number; source: string; created_at: string;
+      rating: number; source: string; is_public: boolean; created_at: string;
     }>(
       `SELECT id, name, description, image_url, cuisine, time, servings, calories,
-              difficulty, tags, ingredients, steps, rating, source, created_at
+              difficulty, tags, ingredients, steps, rating, source,
+              COALESCE(is_public, false) AS is_public, created_at
        FROM custom_recipes WHERE user_id = $1 ORDER BY created_at DESC`,
       [session.id]
     );
@@ -35,6 +36,7 @@ export async function GET() {
       rating: Number(r.rating ?? 4.0),
       source: r.source ?? "Gescannt",
       isCustom: true,
+      isPublic: r.is_public ?? false,
     }));
 
     return NextResponse.json({ recipes });

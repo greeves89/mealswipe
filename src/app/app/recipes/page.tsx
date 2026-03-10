@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Clock, Flame, ChefHat, X, Star, BookOpen, Filter,
   ChevronLeft, ChevronRight, CheckCircle2, Circle, PlayCircle, ShoppingCart,
-  AlertTriangle, PackageCheck, Trash2, Pencil, Crop,
+  AlertTriangle, PackageCheck, Trash2, Pencil, Crop, Share2,
 } from "lucide-react";
 import Cropper from "react-easy-crop";
 import type { Area } from "react-easy-crop";
@@ -48,6 +48,7 @@ interface Recipe {
   steps: string[];
   rating: number;
   isCustom?: boolean;
+  isPublic?: boolean;
 }
 
 const CUISINES = ["Alle", "Italienisch", "Asiatisch", "Mexikanisch", "Deutsch", "International"];
@@ -429,9 +430,10 @@ const getCroppedImg = (imageSrc: string, pixelCrop: Area): Promise<string> =>
     img.src = imageSrc;
   });
 
-function RecipeDetail({ recipe, onClose, onCook, onImageUpdate }: {
+function RecipeDetail({ recipe, onClose, onCook, onImageUpdate, onShareToggle }: {
   recipe: Recipe; onClose: () => void; onCook: () => void;
   onImageUpdate?: (id: string, dataUrl: string) => void;
+  onShareToggle?: (id: string, isPublic: boolean) => void;
 }) {
   const [currentImage, setCurrentImage] = useState(recipe.image);
   const [showCrop, setShowCrop] = useState(false);
@@ -439,6 +441,26 @@ function RecipeDetail({ recipe, onClose, onCook, onImageUpdate }: {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [isPublic, setIsPublic] = useState(recipe.isPublic ?? false);
+  const [shareLoading, setShareLoading] = useState(false);
+
+  const handleShareToggle = async () => {
+    if (!recipe.isCustom) return;
+    setShareLoading(true);
+    const next = !isPublic;
+    try {
+      const res = await fetch(`/api/custom-recipes/${recipe.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: next }),
+      });
+      if (res.ok) {
+        setIsPublic(next);
+        onShareToggle?.(recipe.id, next);
+      }
+    } catch { /* ignore */ }
+    finally { setShareLoading(false); }
+  };
 
   const emoji = currentImage
     ? null
@@ -587,6 +609,36 @@ function RecipeDetail({ recipe, onClose, onCook, onImageUpdate }: {
             {recipe.difficulty}
           </span>
         </div>
+
+        {/* Share toggle for custom recipes */}
+        {recipe.isCustom && (
+          <button
+            onClick={handleShareToggle}
+            disabled={shareLoading}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border transition-all ${
+              isPublic
+                ? "bg-teal-500/10 border-teal-500/30 text-teal-400"
+                : "bg-[#1e293b] border-white/5 text-[#64748b]"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Share2 className="w-4 h-4" />
+              <div className="text-left">
+                <p className="text-sm font-semibold">{isPublic ? "Mit Freunden geteilt" : "Mit Freunden teilen"}</p>
+                <p className="text-xs opacity-70">{isPublic ? "Sichtbar im Community-Feed" : "Nur für dich sichtbar"}</p>
+              </div>
+            </div>
+            {shareLoading ? (
+              <div className="w-10 h-6 rounded-full bg-[#0f172a] flex items-center justify-center">
+                <div className="w-3 h-3 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className={`w-10 h-6 rounded-full transition-all ${isPublic ? "bg-teal-500" : "bg-[#0f172a]"}`}>
+                <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-all mt-0.5 ${isPublic ? "ml-4.5 translate-x-4" : "translate-x-0.5"}`} />
+              </div>
+            )}
+          </button>
+        )}
 
         {/* Tags */}
         {recipe.tags.length > 0 && (
@@ -925,6 +977,9 @@ export default function RecipesPage() {
             onImageUpdate={(id, dataUrl) => {
               setCustomRecipes(prev => prev.map(r => r.id === id ? { ...r, image: dataUrl } : r));
               setSelected(prev => prev && prev.id === id ? { ...prev, image: dataUrl } : prev);
+            }}
+            onShareToggle={(id, isPublic) => {
+              setCustomRecipes(prev => prev.map(r => r.id === id ? { ...r, isPublic } : r));
             }}
           />
         )}

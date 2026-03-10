@@ -14,9 +14,126 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle,
+  Timer,
+  Pause,
+  Play,
+  RotateCcw,
 } from "lucide-react";
 import { useApp, getWeekDays } from "@/lib/store";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+// ── Timer extraction ──────────────────────────────────────────────────────────
+
+// Extract minutes from German/English recipe step text
+// e.g. "5 Minuten", "10-15 Min.", "eine halbe Stunde", "30 Sek."
+function extractTimerMinutes(text: string): number | null {
+  const t = text.toLowerCase();
+
+  // "eine halbe Stunde" / "halbe Stunde"
+  if (/halbe?\s+stunde/.test(t)) return 30;
+
+  // "X Stunde(n)" e.g. "1 Stunde", "2 Stunden"
+  const hourMatch = t.match(/(\d+(?:[.,]\d+)?)\s*stunden?/);
+  if (hourMatch) return Math.round(parseFloat(hourMatch[1].replace(",", ".")) * 60);
+
+  // "X bis Y Minuten" → use X (lower bound)
+  const rangeMatch = t.match(/(\d+)\s*(?:bis|-)\s*(\d+)\s*min/);
+  if (rangeMatch) return parseInt(rangeMatch[1]);
+
+  // "X Minuten" / "X Min."
+  const minMatch = t.match(/(\d+(?:[.,]\d+)?)\s*min(?:uten?|\.)?/);
+  if (minMatch) return Math.round(parseFloat(minMatch[1].replace(",", ".")));
+
+  // "X Sekunden" → convert to minutes (only if >= 15 sec)
+  const secMatch = t.match(/(\d+)\s*sek(?:unden?|\.)?/);
+  if (secMatch) {
+    const secs = parseInt(secMatch[1]);
+    if (secs >= 15) return Math.ceil(secs / 60);
+  }
+
+  return null;
+}
+
+// ── Countdown Timer ───────────────────────────────────────────────────────────
+
+function CountdownTimer({ minutes, onDone }: { minutes: number; onDone: () => void }) {
+  const totalSecs = minutes * 60;
+  const [remaining, setRemaining] = useState(totalSecs);
+  const [running, setRunning] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stop = useCallback(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+  }, []);
+
+  useEffect(() => {
+    if (running) {
+      intervalRef.current = setInterval(() => {
+        setRemaining(r => {
+          if (r <= 1) { stop(); setRunning(false); onDone(); return 0; }
+          return r - 1;
+        });
+      }, 1000);
+    } else {
+      stop();
+    }
+    return stop;
+  }, [running, stop, onDone]);
+
+  // Reset when minutes prop changes (new step)
+  useEffect(() => {
+    stop();
+    setRunning(false);
+    setRemaining(minutes * 60);
+  }, [minutes, stop]);
+
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const progress = (remaining / totalSecs) * 100;
+  const isDone = remaining === 0;
+
+  return (
+    <div className="mt-4 bg-[#0a1a2e] border border-teal-500/20 rounded-2xl p-3 flex items-center gap-3">
+      <div className="relative w-10 h-10 shrink-0">
+        <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="#1e293b" strokeWidth="3" />
+          <circle
+            cx="18" cy="18" r="15" fill="none"
+            stroke={isDone ? "#f43f5e" : "#14b8a6"}
+            strokeWidth="3"
+            strokeDasharray={`${2 * Math.PI * 15}`}
+            strokeDashoffset={`${2 * Math.PI * 15 * (1 - progress / 100)}`}
+            strokeLinecap="round"
+          />
+        </svg>
+        <Timer className={`w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isDone ? "text-rose-400" : "text-teal-400"}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-xs font-semibold ${isDone ? "text-rose-400" : "text-teal-400"}`}>
+          {isDone ? "Zeit abgelaufen!" : "Kochtimer"}
+        </p>
+        <p className="font-black text-lg leading-tight">
+          {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          onClick={() => setRunning(r => !r)}
+          disabled={isDone}
+          className="w-8 h-8 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 disabled:opacity-40 flex items-center justify-center transition-colors"
+        >
+          {running ? <Pause className="w-3.5 h-3.5 text-teal-400" /> : <Play className="w-3.5 h-3.5 text-teal-400" />}
+        </button>
+        <button
+          onClick={() => { stop(); setRunning(false); setRemaining(totalSecs); }}
+          className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5 text-[#64748b]" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── Cooking Mode ──────────────────────────────────────────────────────────────
 
@@ -24,7 +141,10 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
   const steps = recipe.steps ?? [];
   const [currentStep, setCurrentStep] = useState(0);
   const [done, setDone] = useState(false);
+  const [timerKey, setTimerKey] = useState(0); // force re-mount timer on step change
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  const currentTimerMinutes = done ? null : extractTimerMinutes(steps[currentStep] ?? "");
 
   // Acquire WakeLock to keep screen on while cooking
   useEffect(() => {
@@ -52,13 +172,17 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
   }, []);
 
   const goNext = () => {
+    setTimerKey(k => k + 1);
     if (currentStep < steps.length - 1) {
       setCurrentStep(s => s + 1);
     } else {
       setDone(true);
     }
   };
-  const goPrev = () => setCurrentStep(s => Math.max(0, s - 1));
+  const goPrev = () => {
+    setTimerKey(k => k + 1);
+    setCurrentStep(s => Math.max(0, s - 1));
+  };
 
   const progress = ((currentStep + (done ? 1 : 0)) / steps.length) * 100;
 
@@ -131,6 +255,15 @@ function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void 
               <p className="text-white text-xl leading-relaxed font-medium">
                 {steps[currentStep]}
               </p>
+              {currentTimerMinutes && (
+                <CountdownTimer
+                  key={timerKey}
+                  minutes={currentTimerMinutes}
+                  onDone={() => {/* vibrate if supported */
+                    if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+                  }}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>

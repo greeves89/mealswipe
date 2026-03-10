@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET environment variable is required");
+  throw new Error("JWT_SECRET environment variable is required. Set it in .env.local");
 }
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const COOKIE_NAME = "forkly-session";
@@ -58,7 +58,7 @@ export const COOKIE_OPTIONS = {
   name: COOKIE_NAME,
   httpOnly: true,
   secure: isCookieSecure,
-  sameSite: "lax" as const,
+  sameSite: "lax" as const, // "strict" breaks iOS Safari post-login redirects
   maxAge: EXPIRES_IN,
   path: "/",
 };

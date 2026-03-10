@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Package, Search, X, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Package, Search, X, ChevronDown, Barcode, Camera, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 interface PantryItem {
   id: string;
@@ -27,6 +27,364 @@ const CATEGORY_EMOJI: Record<string, string> = {
 };
 
 const UNITS = ["g", "kg", "ml", "l", "Stück", "Bund", "Packung", "Dose", "Flasche", "EL", "TL"];
+
+// ── Barcode Scanner Modal ────────────────────────────────────────────────────
+
+interface BarcodeResult {
+  found: boolean;
+  name?: string;
+  quantity?: number;
+  unit?: string;
+  category?: string;
+  image?: string | null;
+}
+
+function BarcodeScannerModal({
+  onAdd,
+  onClose,
+}: {
+  onAdd: (item: Omit<PantryItem, "id" | "created_at">) => void;
+  onClose: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const detectorRef = useRef<any>(null);
+  const scanInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [phase, setPhase] = useState<"scanning" | "found" | "notfound" | "error">("scanning");
+  const [product, setProduct] = useState<BarcodeResult | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editQty, setEditQty] = useState("1");
+  const [editUnit, setEditUnit] = useState("Stück");
+  const [editCat, setEditCat] = useState("Sonstiges");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  const stopCamera = useCallback(() => {
+    if (scanInterval.current) clearInterval(scanInterval.current);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }, []);
+
+  const handleClose = useCallback(() => {
+    stopCamera();
+    onClose();
+  }, [stopCamera, onClose]);
+
+  const lookupBarcode = useCallback(async (barcode: string) => {
+    stopCamera();
+    setPhase("found"); // optimistic — show loader in the found state
+    try {
+      const res = await fetch(`/api/barcode-lookup?barcode=${barcode}`);
+      const data: BarcodeResult = await res.json();
+      setProduct(data);
+      if (data.found) {
+        setEditName(data.name ?? "");
+        setEditQty(String(data.quantity ?? 1));
+        setEditUnit(data.unit ?? "Stück");
+        setEditCat(data.category ?? "Sonstiges");
+        setPhase("found");
+      } else {
+        setPhase("notfound");
+        setEditName("");
+        setEditQty("1");
+        setEditUnit("Stück");
+        setEditCat("Sonstiges");
+      }
+    } catch {
+      setPhase("error");
+    }
+  }, [stopCamera]);
+
+  // Start camera + BarcodeDetector scanning loop
+  useEffect(() => {
+    let cancelled = false;
+
+    async function start() {
+      // Check BarcodeDetector support
+      if (!("BarcodeDetector" in window)) {
+        setCameraError("Barcode-Erkennung wird von diesem Browser nicht unterstützt. Bitte Chrome auf Android oder Edge verwenden.");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        detectorRef.current = new (window as any).BarcodeDetector({
+          formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"],
+        });
+
+        scanInterval.current = setInterval(async () => {
+          if (!videoRef.current || !detectorRef.current || cancelled) return;
+          try {
+            const barcodes = await detectorRef.current.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              const code = barcodes[0].rawValue;
+              if (code && /^\d{8,14}$/.test(code)) {
+                lookupBarcode(code);
+              }
+            }
+          } catch { /* frame decode errors are normal */ }
+        }, 400);
+      } catch (err) {
+        if (!cancelled) {
+          setCameraError("Kamera konnte nicht gestartet werden. Bitte Kamerazugriff erlauben.");
+          console.error(err);
+        }
+      }
+    }
+
+    start();
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [lookupBarcode, stopCamera]);
+
+  const handleConfirm = () => {
+    onAdd({
+      name: editName.trim() || "Unbekanntes Produkt",
+      quantity: parseFloat(editQty) || 1,
+      unit: editUnit,
+      category: editCat,
+    });
+    handleClose();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex flex-col bg-[#080f1e]"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-3 shrink-0">
+        <div className="flex items-center gap-2">
+          <Barcode className="w-5 h-5 text-teal-400" />
+          <h2 className="font-black text-base">Barcode scannen</h2>
+        </div>
+        <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {phase === "scanning" && (
+        <>
+          {cameraError ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
+              <AlertCircle className="w-10 h-10 text-red-400" />
+              <p className="text-sm text-[#94a3b8]">{cameraError}</p>
+              <button onClick={handleClose} className="px-6 py-2.5 rounded-2xl bg-white/5 text-sm font-semibold">
+                Schließen
+              </button>
+            </div>
+          ) : (
+            <div className="flex-1 relative overflow-hidden">
+              <video
+                ref={videoRef}
+                className="absolute inset-0 w-full h-full object-cover"
+                muted
+                playsInline
+              />
+              <canvas ref={canvasRef} className="hidden" />
+              {/* Overlay */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <div className="w-64 h-40 border-2 border-teal-400 rounded-2xl relative">
+                  {/* Corner marks */}
+                  <span className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-4 border-l-4 border-teal-400 rounded-tl-xl" />
+                  <span className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-4 border-r-4 border-teal-400 rounded-tr-xl" />
+                  <span className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-4 border-l-4 border-teal-400 rounded-bl-xl" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-4 border-r-4 border-teal-400 rounded-br-xl" />
+                  {/* Scan line */}
+                  <motion.div
+                    className="absolute inset-x-2 h-0.5 bg-teal-400/80 rounded-full"
+                    animate={{ top: ["10%", "85%", "10%"] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                </div>
+                <p className="mt-5 text-sm text-white/70 font-medium bg-black/50 px-4 py-2 rounded-full">
+                  Barcode in den Rahmen halten
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {phase === "found" && !product && (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
+        </div>
+      )}
+
+      {phase === "found" && product?.found && (
+        <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
+          <div className="flex items-center gap-3 py-3">
+            {product.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={product.image} alt={editName} className="w-14 h-14 rounded-xl object-contain bg-white/5" />
+            ) : (
+              <div className="w-14 h-14 rounded-xl bg-teal-500/10 flex items-center justify-center">
+                <Package className="w-7 h-7 text-teal-400" />
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-teal-400" />
+                <span className="text-xs text-teal-400 font-semibold">Produkt gefunden</span>
+              </div>
+              <p className="font-bold mt-0.5">{editName}</p>
+            </div>
+          </div>
+
+          {/* Edit fields */}
+          <div>
+            <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Name</label>
+            <input
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              className="w-full bg-[#0f172a] border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-500/40"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <div className="w-24">
+              <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Menge</label>
+              <input
+                type="number"
+                value={editQty}
+                onChange={e => setEditQty(e.target.value)}
+                min="0"
+                step="0.1"
+                className="w-full bg-[#0f172a] border border-white/5 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-teal-500/40"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Einheit</label>
+              <div className="relative">
+                <select
+                  value={editUnit}
+                  onChange={e => setEditUnit(e.target.value)}
+                  className="w-full appearance-none bg-[#0f172a] border border-white/5 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-teal-500/40 pr-8"
+                >
+                  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748b] pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Kategorie</label>
+            <div className="grid grid-cols-3 gap-2">
+              {CATEGORIES.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setEditCat(c)}
+                  className={`py-2 px-2 rounded-xl text-xs font-semibold transition-all text-left flex items-center gap-1.5 ${
+                    editCat === c ? "bg-teal-500/20 text-teal-400 border border-teal-500/30" : "bg-[#0f172a] text-[#64748b] border border-white/5"
+                  }`}
+                >
+                  <span>{CATEGORY_EMOJI[c]}</span>
+                  <span className="truncate">{c}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={handleConfirm}
+            disabled={!editName.trim()}
+            className="w-full bg-teal-500 hover:bg-teal-400 disabled:opacity-40 text-white py-3.5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> Zum Lager hinzufügen
+          </button>
+          <button
+            onClick={() => { setPhase("scanning"); setProduct(null); /* restart camera */ }}
+            className="w-full py-3 rounded-2xl font-semibold text-sm text-[#64748b] hover:text-white transition-colors"
+          >
+            Erneut scannen
+          </button>
+        </div>
+      )}
+
+      {(phase === "notfound" || phase === "error") && (
+        <div className="flex-1 flex flex-col px-4 pb-6">
+          <div className="flex-1 flex flex-col items-center justify-center text-center gap-3">
+            <span className="text-4xl">{phase === "notfound" ? "🔍" : "⚠️"}</span>
+            <p className="font-bold">
+              {phase === "notfound" ? "Produkt nicht gefunden" : "Fehler bei der Suche"}
+            </p>
+            <p className="text-sm text-[#64748b]">
+              {phase === "notfound"
+                ? "Dieser Barcode ist nicht in der Datenbank. Trag das Produkt manuell ein."
+                : "Verbindungsproblem. Bitte erneut versuchen."}
+            </p>
+          </div>
+
+          {/* Manual entry fallback */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wide">Manuell eingeben</p>
+            <input
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              placeholder="Produktname..."
+              className="w-full bg-[#0f172a] border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-500/40"
+            />
+            <div className="flex gap-3">
+              <input
+                type="number"
+                value={editQty}
+                onChange={e => setEditQty(e.target.value)}
+                min="0"
+                step="0.1"
+                className="w-24 bg-[#0f172a] border border-white/5 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-teal-500/40"
+              />
+              <div className="relative flex-1">
+                <select
+                  value={editUnit}
+                  onChange={e => setEditUnit(e.target.value)}
+                  className="w-full appearance-none bg-[#0f172a] border border-white/5 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-teal-500/40 pr-8"
+                >
+                  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748b] pointer-events-none" />
+              </div>
+            </div>
+            <button
+              onClick={handleConfirm}
+              disabled={!editName.trim()}
+              className="w-full bg-teal-500 hover:bg-teal-400 disabled:opacity-40 text-white py-3.5 rounded-2xl font-bold transition-all"
+            >
+              Hinzufügen
+            </button>
+            <button
+              onClick={handleClose}
+              className="w-full py-3 rounded-2xl font-semibold text-sm text-[#64748b] hover:text-white transition-colors"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ── Add Item Modal ───────────────────────────────────────────────────────────
 
 function AddItemModal({ onAdd, onClose }: { onAdd: (item: Omit<PantryItem, "id" | "created_at">) => void; onClose: () => void }) {
   const [name, setName] = useState("");
@@ -129,11 +487,14 @@ function AddItemModal({ onAdd, onClose }: { onAdd: (item: Omit<PantryItem, "id" 
   );
 }
 
+// ── Main Page ────────────────────────────────────────────────────────────────
+
 export default function LagerPage() {
   const [items, setItems] = useState<PantryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [activeCategory, setActiveCategory] = useState("Alle");
 
   async function load() {
@@ -211,12 +572,22 @@ export default function LagerPage() {
             </h1>
             <p className="text-[#64748b] text-sm mt-0.5">{items.length} Zutaten vorrätig</p>
           </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white px-4 py-2.5 rounded-2xl font-semibold text-sm transition-all"
-          >
-            <Plus className="w-4 h-4" /> Hinzufügen
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowScanner(true)}
+              title="Barcode scannen"
+              className="flex items-center gap-2 bg-[#0f172a] border border-white/5 hover:border-teal-500/30 text-[#94a3b8] hover:text-teal-400 px-3.5 py-2.5 rounded-2xl font-semibold text-sm transition-all"
+            >
+              <Barcode className="w-4 h-4" />
+              <span className="hidden sm:inline">Scannen</span>
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white px-4 py-2.5 rounded-2xl font-semibold text-sm transition-all"
+            >
+              <Plus className="w-4 h-4" /> Hinzufügen
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -265,12 +636,20 @@ export default function LagerPage() {
               {items.length === 0 ? "Noch keine Zutaten im Lager" : "Keine Zutaten gefunden"}
             </p>
             {items.length === 0 && (
-              <button
-                onClick={() => setShowAdd(true)}
-                className="mt-3 text-teal-400 text-sm hover:underline"
-              >
-                Erste Zutat hinzufügen
-              </button>
+              <div className="flex flex-col items-center gap-2 mt-3">
+                <button
+                  onClick={() => setShowScanner(true)}
+                  className="flex items-center gap-2 text-teal-400 text-sm hover:underline"
+                >
+                  <Barcode className="w-4 h-4" /> Barcode scannen
+                </button>
+                <button
+                  onClick={() => setShowAdd(true)}
+                  className="text-[#64748b] text-sm hover:underline"
+                >
+                  oder manuell hinzufügen
+                </button>
+              </div>
             )}
           </div>
         ) : (
@@ -330,10 +709,16 @@ export default function LagerPage() {
         )}
       </div>
 
-      {/* Add modal */}
+      {/* Modals */}
       <AnimatePresence>
         {showAdd && (
           <AddItemModal onAdd={handleAdd} onClose={() => setShowAdd(false)} />
+        )}
+        {showScanner && (
+          <BarcodeScannerModal
+            onAdd={(item) => { handleAdd(item); setShowScanner(false); }}
+            onClose={() => setShowScanner(false)}
+          />
         )}
       </AnimatePresence>
     </>

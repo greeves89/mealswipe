@@ -3,6 +3,9 @@ import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await req.json();
 
   // Support both old single-image format and new multi-image format
@@ -133,12 +136,10 @@ export async function PUT(req: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      console.error("Scan PUT: no session found");
       return NextResponse.json({ error: "Nicht eingeloggt" }, { status: 401 });
     }
 
     const recipe = await req.json();
-    console.log("Scan PUT: saving recipe", recipe.name, "for user", session.id);
 
     const result = await query<{ id: string }>(
       `INSERT INTO custom_recipes
@@ -164,10 +165,9 @@ export async function PUT(req: NextRequest) {
       ]
     );
 
-    console.log("Scan PUT: saved recipe id", result[0]?.id);
     return NextResponse.json({ ok: true, id: result[0]?.id });
   } catch (err) {
     console.error("Scan PUT error:", err);
-    return NextResponse.json({ error: "Speichern fehlgeschlagen: " + String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Speichern fehlgeschlagen" }, { status: 500 });
   }
 }

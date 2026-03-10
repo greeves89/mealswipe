@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
 
 const DEMO_RECIPE = {
   name: "Pasta al Pomodoro (Demo)",
@@ -83,6 +84,9 @@ async function callOpenAI(apiKey: string, text: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await req.json();
   const { url, text } = body as { url?: string; text?: string };
 
@@ -103,9 +107,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Keine URL oder Text angegeben" }, { status: 400 });
   }
 
-  // Basic URL validation
-  try { new URL(url); } catch {
+  // URL validation + SSRF protection
+  let parsedUrl: URL;
+  try { parsedUrl = new URL(url); } catch {
     return NextResponse.json({ error: "Ungültige URL" }, { status: 400 });
+  }
+  // Only allow https (no file://, ftp://, etc.)
+  if (parsedUrl.protocol !== "https:") {
+    return NextResponse.json({ error: "Nur HTTPS-URLs erlaubt" }, { status: 400 });
+  }
+  // Block private/internal IP ranges (SSRF protection)
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const BLOCKED = [
+    /^localhost$/i, /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
+    /^0\.0\.0\.0$/, /^::1$/, /^fc00:/, /^169\.254\./, /\.local$/,
+  ];
+  if (BLOCKED.some(r => r.test(hostname))) {
+    return NextResponse.json({ error: "URL nicht erlaubt" }, { status: 400 });
   }
 
   if (!apiKey) return NextResponse.json(DEMO_RECIPE);
@@ -113,9 +131,10 @@ export async function POST(req: NextRequest) {
   // Fetch the URL content
   let pageText = "";
   try {
-    const res = await fetch(url, {
+    const res = await fetch(parsedUrl.toString(), {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; ForklyBot/1.0)" },
       signal: AbortSignal.timeout(8000),
+      redirect: "follow",
     });
     const html = await res.text();
     // Strip HTML tags to get readable text, limit to ~6000 chars

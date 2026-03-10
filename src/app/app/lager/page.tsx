@@ -1,7 +1,17 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Package, Search, X, ChevronDown, Barcode, Camera, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Package, Search, X, ChevronDown, Barcode, Loader2, CheckCircle, AlertCircle, Snowflake, CalendarDays } from "lucide-react";
+
+interface FrozenMeal {
+  id: string;
+  recipe_name: string;
+  recipe_image: string | null;
+  portions: number;
+  frozen_on: string;
+  notes: string | null;
+  created_at: string;
+}
 
 interface PantryItem {
   id: string;
@@ -487,9 +497,263 @@ function AddItemModal({ onAdd, onClose }: { onAdd: (item: Omit<PantryItem, "id" 
   );
 }
 
+// ── Add Frozen Meal Modal ────────────────────────────────────────────────────
+
+function AddFrozenModal({
+  onAdd,
+  onClose,
+}: {
+  onAdd: (meal: Omit<FrozenMeal, "id" | "created_at">) => void;
+  onClose: () => void;
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const [name, setName] = useState("");
+  const [portions, setPortions] = useState("2");
+  const [frozenOn, setFrozenOn] = useState(today);
+  const [notes, setNotes] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onAdd({
+      recipe_name: name.trim(),
+      recipe_image: null,
+      portions: Math.max(1, parseInt(portions) || 1),
+      frozen_on: frozenOn,
+      notes: notes.trim() || null,
+    });
+    onClose();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/60" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-3xl p-6"
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 className="font-black text-lg mb-5 flex items-center gap-2">
+          <Snowflake className="w-5 h-5 text-sky-400" /> Gericht einfrieren
+        </h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Gericht</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="z.B. Bolognese, Suppe, Curry..."
+              className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-sm placeholder-[#334155] focus:outline-none focus:border-sky-500/40"
+            />
+          </div>
+          <div className="flex gap-3">
+            <div className="w-28">
+              <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Portionen</label>
+              <input
+                type="number"
+                value={portions}
+                onChange={e => setPortions(e.target.value)}
+                min="1"
+                max="99"
+                className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-sky-500/40"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Eingefroren am</label>
+              <input
+                type="date"
+                value={frozenOn}
+                onChange={e => setFrozenOn(e.target.value)}
+                className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-sky-500/40"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[#64748b] uppercase tracking-wide block mb-1.5">Notiz (optional)</label>
+            <input
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="z.B. scharf, ohne Zwiebeln..."
+              className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-sm placeholder-[#334155] focus:outline-none focus:border-sky-500/40"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!name.trim()}
+            className="w-full bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-white py-3.5 rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+          >
+            <Snowflake className="w-4 h-4" /> Einfrieren
+          </button>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Frozen Tab Content ───────────────────────────────────────────────────────
+
+function FrozenTab() {
+  const [items, setItems] = useState<FrozenMeal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/frozen");
+      if (res.ok) setItems((await res.json()).items ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async (meal: Omit<FrozenMeal, "id" | "created_at">) => {
+    try {
+      const res = await fetch("/api/frozen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(meal),
+      });
+      if (res.ok) load();
+    } catch { /* silent */ }
+  };
+
+  const handlePortionChange = async (id: string, portions: number) => {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, portions } : i).filter(i => i.portions > 0));
+    try {
+      await fetch("/api/frozen", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, portions }),
+      });
+    } catch { /* silent */ }
+  };
+
+  const handleDelete = async (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+    try {
+      await fetch("/api/frozen", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch { /* silent */ }
+  };
+
+  const totalPortions = items.reduce((s, i) => s + i.portions, 0);
+
+  return (
+    <>
+      {/* Sub-header */}
+      <div className="pt-2 flex items-center justify-between">
+        <p className="text-[#64748b] text-sm">
+          {totalPortions > 0 ? `${totalPortions} Portionen eingefroren` : "Keine eingefrorenen Gerichte"}
+        </p>
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-white px-4 py-2.5 rounded-2xl font-semibold text-sm transition-all"
+        >
+          <Plus className="w-4 h-4" /> Einfrieren
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2 mt-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-20 bg-[#0f172a] rounded-2xl animate-pulse" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="text-center py-16">
+          <span className="text-4xl">❄️</span>
+          <p className="text-[#64748b] mt-3 font-medium">Noch nichts eingefroren</p>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="mt-3 text-sky-400 text-sm hover:underline"
+          >
+            Erstes Gericht einfrieren
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-2xl bg-[#0f172a] border border-white/5 divide-y divide-white/5 overflow-hidden">
+          <AnimatePresence>
+            {items.map(item => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-4 py-3 flex items-center gap-3"
+              >
+                <div className="w-9 h-9 rounded-xl bg-sky-500/10 flex items-center justify-center shrink-0">
+                  <Snowflake className="w-4 h-4 text-sky-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{item.recipe_name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <CalendarDays className="w-3 h-3 text-[#475569]" />
+                    <span className="text-xs text-[#475569]">
+                      {new Date(item.frozen_on).toLocaleDateString("de-DE", { day: "numeric", month: "short" })}
+                    </span>
+                    {item.notes && (
+                      <span className="text-xs text-[#475569] truncate">· {item.notes}</span>
+                    )}
+                  </div>
+                </div>
+                {/* Portion controls */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handlePortionChange(item.id, item.portions - 1)}
+                    className="w-7 h-7 rounded-lg bg-[#1e293b] flex items-center justify-center text-[#64748b] hover:text-white text-lg font-bold leading-none transition-colors"
+                  >
+                    −
+                  </button>
+                  <span className="text-sm font-bold w-12 text-center">
+                    {item.portions}
+                    <span className="text-[#64748b] font-normal text-xs block leading-none">Port.</span>
+                  </span>
+                  <button
+                    onClick={() => handlePortionChange(item.id, item.portions + 1)}
+                    className="w-7 h-7 rounded-lg bg-[#1e293b] flex items-center justify-center text-[#64748b] hover:text-white text-lg font-bold leading-none transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-colors ml-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showAdd && <AddFrozenModal onAdd={handleAdd} onClose={() => setShowAdd(false)} />}
+      </AnimatePresence>
+    </>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LagerPage() {
+  const [activeTab, setActiveTab] = useState<"vorraete" | "tiefkuehl">("vorraete");
   const [items, setItems] = useState<PantryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -566,29 +830,54 @@ export default function LagerPage() {
       <div className="p-4 space-y-4">
         {/* Header */}
         <div className="pt-2 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black flex items-center gap-2">
-              <Package className="w-6 h-6 text-teal-400" /> Lager
-            </h1>
-            <p className="text-[#64748b] text-sm mt-0.5">{items.length} Zutaten vorrätig</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowScanner(true)}
-              title="Barcode scannen"
-              className="flex items-center gap-2 bg-[#0f172a] border border-white/5 hover:border-teal-500/30 text-[#94a3b8] hover:text-teal-400 px-3.5 py-2.5 rounded-2xl font-semibold text-sm transition-all"
-            >
-              <Barcode className="w-4 h-4" />
-              <span className="hidden sm:inline">Scannen</span>
-            </button>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white px-4 py-2.5 rounded-2xl font-semibold text-sm transition-all"
-            >
-              <Plus className="w-4 h-4" /> Hinzufügen
-            </button>
-          </div>
+          <h1 className="text-2xl font-black flex items-center gap-2">
+            <Package className="w-6 h-6 text-teal-400" /> Lager
+          </h1>
+          {activeTab === "vorraete" && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowScanner(true)}
+                title="Barcode scannen"
+                className="flex items-center gap-2 bg-[#0f172a] border border-white/5 hover:border-teal-500/30 text-[#94a3b8] hover:text-teal-400 px-3.5 py-2.5 rounded-2xl font-semibold text-sm transition-all"
+              >
+                <Barcode className="w-4 h-4" />
+                <span className="hidden sm:inline">Scannen</span>
+              </button>
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white px-4 py-2.5 rounded-2xl font-semibold text-sm transition-all"
+              >
+                <Plus className="w-4 h-4" /> Hinzufügen
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Tab switcher */}
+        <div className="flex gap-2 bg-[#0a1120] p-1 rounded-2xl border border-white/5">
+          <button
+            onClick={() => setActiveTab("vorraete")}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+              activeTab === "vorraete" ? "bg-teal-500 text-white" : "text-[#64748b] hover:text-white"
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" /> Vorräte
+          </button>
+          <button
+            onClick={() => setActiveTab("tiefkuehl")}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+              activeTab === "tiefkuehl" ? "bg-sky-500 text-white" : "text-[#64748b] hover:text-white"
+            }`}
+          >
+            <Snowflake className="w-3.5 h-3.5" /> Tiefkühl
+          </button>
+        </div>
+
+        {/* Tiefkühl tab */}
+        {activeTab === "tiefkuehl" && <FrozenTab />}
+
+        {/* Vorräte tab */}
+        {activeTab === "vorraete" && <>
 
         {/* Search */}
         <div className="relative">
@@ -707,6 +996,7 @@ export default function LagerPage() {
             ))}
           </div>
         )}
+        </>}
       </div>
 
       {/* Modals */}

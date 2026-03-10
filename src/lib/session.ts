@@ -2,14 +2,9 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 if (!process.env.JWT_SECRET) {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("JWT_SECRET environment variable is required in production");
-  }
-  console.warn("⚠️  JWT_SECRET not set — using insecure dev fallback. Set JWT_SECRET in .env!");
+  throw new Error("JWT_SECRET environment variable is required. Set it in .env.local");
 }
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "forkly-dev-only-insecure-secret-do-not-use-in-production"
-);
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const COOKIE_NAME = "forkly-session";
 const EXPIRES_IN = 60 * 60 * 24 * 14; // 14 days (reduced from 30)
 
@@ -63,7 +58,7 @@ export const COOKIE_OPTIONS = {
   name: COOKIE_NAME,
   httpOnly: true,
   secure: isCookieSecure,
-  sameSite: "strict" as const,
+  sameSite: "lax" as const, // "strict" breaks iOS Safari post-login redirects
   maxAge: EXPIRES_IN,
   path: "/",
 };

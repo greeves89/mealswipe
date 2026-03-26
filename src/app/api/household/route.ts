@@ -107,10 +107,25 @@ export async function POST(req: NextRequest) {
     if (!hh) return NextResponse.json({ error: "Ungültiger Code" }, { status: 404 });
     if (hh.owner_id === user.id) return NextResponse.json({ error: "Du bist der Besitzer" }, { status: 400 });
 
-    await query(
-      "UPDATE users SET household_id = $1, plan = 'family' WHERE id = $2",
-      [hh.id, user.id]
+    // Only upgrade joining user to family plan if the household owner actually has a family plan
+    const hhOwner = await queryOne<{ plan: string }>(
+      "SELECT plan FROM users WHERE id = $1",
+      [hh.owner_id]
     );
+    const ownerHasFamilyPlan = hhOwner?.plan === "family";
+
+    if (ownerHasFamilyPlan) {
+      await query(
+        "UPDATE users SET household_id = $1, plan = 'family' WHERE id = $2",
+        [hh.id, user.id]
+      );
+    } else {
+      // Join the household but do not upgrade the plan
+      await query(
+        "UPDATE users SET household_id = $1 WHERE id = $2",
+        [hh.id, user.id]
+      );
+    }
     return NextResponse.json({ ok: true, household_id: hh.id });
   }
 

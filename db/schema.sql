@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
   stripe_customer_id      TEXT,
   stripe_subscription_id  TEXT,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
+  consented_at      TIMESTAMPTZ,
+  consent_version   TEXT,
   updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
 

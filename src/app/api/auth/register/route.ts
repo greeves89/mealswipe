@@ -19,8 +19,10 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hash(password, 12);
     const [user] = await query<{ id: string; email: string; name: string }>(
-      `INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id, email, name`,
-      [email.toLowerCase(), name, passwordHash]
+      `INSERT INTO users (email, name, password_hash, consented_at, consent_version)
+       VALUES ($1, $2, $3, NOW(), $4)
+       RETURNING id, email, name`,
+      [email.toLowerCase(), name, passwordHash, "1.0"]
     );
 
     // Create profile

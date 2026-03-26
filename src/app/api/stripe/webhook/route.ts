@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
            WHERE id = $3`,
           [plan, session.customer as string, userId]
         );
-      } catch {
-        // DB may not be configured — ignore gracefully
+      } catch (error) {
+        console.error("Stripe webhook DB error (checkout.session.completed):", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
       }
     }
   }
@@ -53,8 +54,9 @@ export async function POST(req: NextRequest) {
         "UPDATE users SET plan = 'free', updated_at = NOW() WHERE stripe_customer_id = $1",
         [customerId]
       );
-    } catch {
-      // DB may not be configured — ignore gracefully
+    } catch (error) {
+      console.error("Stripe webhook DB error (customer.subscription.deleted):", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
   }
 
@@ -80,8 +82,9 @@ export async function POST(req: NextRequest) {
               "UPDATE users SET plan = $1, updated_at = NOW() WHERE stripe_customer_id = $2",
               [newPlan, customerId]
             );
-          } catch {
-            // DB may not be configured — ignore gracefully
+          } catch (error) {
+            console.error("Stripe webhook DB error (customer.subscription.updated):", error);
+            return NextResponse.json({ error: "Internal server error" }, { status: 500 });
           }
         }
       }

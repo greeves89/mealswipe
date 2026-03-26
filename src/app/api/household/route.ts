@@ -107,8 +107,17 @@ export async function POST(req: NextRequest) {
     if (!hh) return NextResponse.json({ error: "Ungültiger Code" }, { status: 404 });
     if (hh.owner_id === user.id) return NextResponse.json({ error: "Du bist der Besitzer" }, { status: 400 });
 
+    // Verify household owner actually has a valid family subscription
+    const owner = await queryOne<{ plan: string }>(
+      "SELECT plan FROM users WHERE id = $1",
+      [hh.owner_id]
+    );
+    if (owner?.plan !== "family") {
+      return NextResponse.json({ error: "Haushalt-Eigentümer hat kein Family-Abo" }, { status: 403 });
+    }
+
     await query(
-      "UPDATE users SET household_id = $1, plan = 'family' WHERE id = $2",
+      "UPDATE users SET household_id = $1 WHERE id = $2",
       [hh.id, user.id]
     );
     return NextResponse.json({ ok: true, household_id: hh.id });

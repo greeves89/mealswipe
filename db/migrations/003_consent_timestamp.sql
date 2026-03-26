@@ -1,4 +1,4 @@
--- Migration 002: Add consent timestamp to users
+-- Migration 003: Add consent timestamp to users
 -- DSGVO Art. 7 — store when user accepted the privacy policy
 
 ALTER TABLE users

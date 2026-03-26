@@ -103,8 +103,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Keine URL oder Text angegeben" }, { status: 400 });
   }
 
-  // Basic URL validation
-  try { new URL(url); } catch {
+  // Basic URL validation — restrict to http(s) to prevent SSRF
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return NextResponse.json({ error: "Nur HTTP/HTTPS URLs erlaubt" }, { status: 400 });
+    }
+  } catch {
     return NextResponse.json({ error: "Ungültige URL" }, { status: 400 });
   }
 

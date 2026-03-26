@@ -1,9 +1,10 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "forkly-dev-secret-change-in-production-please"
-);
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required");
+}
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const COOKIE_NAME = "forkly-session";
 const EXPIRES_IN = 60 * 60 * 24 * 30; // 30 days
 
@@ -53,7 +54,7 @@ export function getSessionFromRequest(req: Request): Promise<SessionUser | null>
 export const COOKIE_OPTIONS = {
   name: COOKIE_NAME,
   httpOnly: true,
-  secure: process.env.COOKIE_SECURE === "true",
+  secure: process.env.COOKIE_SECURE !== "false",
   sameSite: "lax" as const,
   maxAge: EXPIRES_IN,
   path: "/",

@@ -12,7 +12,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-eval in dev
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://images.unsplash.com https://images.openfoodfacts.org https://static.openfoodfacts.org",
+      "img-src 'self' data: blob: https://images.openfoodfacts.org https://static.openfoodfacts.org",
       "font-src 'self'",
       "connect-src 'self' https://api.openai.com https://world.openfoodfacts.org",
       "media-src 'self'",
@@ -33,11 +33,6 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        pathname: "/**",
-      },
       {
         protocol: "https",
         hostname: "images.openfoodfacts.org",

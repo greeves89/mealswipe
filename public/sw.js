@@ -84,7 +84,7 @@ function isImage(url) {
   return (
     /\.(png|jpg|jpeg|webp|gif|svg|ico)$/i.test(url.pathname) ||
     url.hostname.includes("img.spoonacular.com") ||
-    url.hostname.includes("images.unsplash.com") ||
+    url.pathname.startsWith("/images/recipes/") ||
     url.hostname.includes("cloudinary.com") ||
     url.hostname.includes("openfoodfacts.org")
   );

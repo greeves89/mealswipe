@@ -79,7 +79,7 @@ const steps = [
   {
     icon: Camera,
     title: "Scannen",
-    desc: "Fotografiere deine HelloFresh- oder Chefkoch-Rezeptkarte. Unsere KI extrahiert alle Infos automatisch.",
+    desc: "Fotografiere jede Rezeptkarte oder Kochbuchseite. Unsere KI extrahiert alle Infos automatisch.",
     color: "text-teal-400",
     bg: "bg-teal-400/10",
   },
@@ -103,7 +103,7 @@ const features = [
   {
     icon: Camera,
     title: "KI-Rezept Scanner",
-    desc: "Scanne jede Rezeptkarte — HelloFresh, Chefkoch, BBC Food. Alles wird automatisch erkannt.",
+    desc: "Scanne jede Rezeptkarte — aus Kochbüchern, Zeitschriften oder dem Web. Alles wird automatisch erkannt.",
     color: "teal",
   },
   {
@@ -199,13 +199,13 @@ const pricing = [
 ];
 
 const competitors = [
-  { feature: "Tinder-Style Swipen", ms: true, hf: false, ck: false },
-  { feature: "KI-Rezept Scanner", ms: true, hf: false, ck: false },
-  { feature: "Eigene Rezepte importieren", ms: true, hf: false, ck: true },
-  { feature: "Supermarkt-Integration", ms: true, hf: true, ck: false },
-  { feature: "Kein Abo-Zwang", ms: true, hf: false, ck: true },
-  { feature: "Ernährungsfilter", ms: true, hf: true, ck: true },
-  { feature: "Offline-Modus", ms: true, hf: false, ck: false },
+  { feature: "Tinder-Style Swipen", ms: true, kc: false, ck: false },
+  { feature: "KI-Rezept Scanner", ms: true, kc: false, ck: false },
+  { feature: "Eigene Rezepte importieren", ms: true, kc: true, ck: true },
+  { feature: "Einkaufsliste", ms: true, kc: true, ck: false },
+  { feature: "Kein Abo-Zwang", ms: true, kc: false, ck: true },
+  { feature: "Ernährungsfilter", ms: true, kc: true, ck: true },
+  { feature: "Offline-Modus (PWA)", ms: true, kc: false, ck: false },
 ];
 
 export default function LandingPage() {
@@ -442,7 +442,7 @@ export default function LandingPage() {
               <div className="grid grid-cols-4 bg-[#1e293b]/50 p-4 text-sm font-semibold text-[#94a3b8]">
                 <div>Feature</div>
                 <div className="text-center text-teal-400">forkly</div>
-                <div className="text-center">HelloFresh</div>
+                <div className="text-center">KptnCook</div>
                 <div className="text-center">Chefkoch</div>
               </div>
               {competitors.map((row, i) => (
@@ -459,7 +459,7 @@ export default function LandingPage() {
                     )}
                   </div>
                   <div className="flex justify-center">
-                    {row.hf ? (
+                    {row.kc ? (
                       <Check className="w-5 h-5 text-[#64748b]" />
                     ) : (
                       <X className="w-5 h-5 text-[#475569]" />

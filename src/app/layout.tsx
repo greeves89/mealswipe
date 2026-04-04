@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: "forkly — Mahlzeiten, die du liebst",
   description:
     "Scanne Rezeptkarten, swipe deine Woche, lass einkaufen. KI-gestützter Mahlzeitenplaner.",
-  keywords: ["Mahlzeitenplaner", "Rezepte", "Einkaufsliste", "HelloFresh", "KI"],
+  keywords: ["Mahlzeitenplaner", "Rezepte", "Einkaufsliste", "Meal Prep", "KI", "Rezept Scanner"],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
